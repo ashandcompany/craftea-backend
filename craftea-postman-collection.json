@@ -1,0 +1,891 @@
+{
+	"info": {
+		"_postman_id": "craftea-backend-2026",
+		"name": "Craftea Backend",
+		"description": "Collection complète pour tester les 4 micro-services Craftea : User, Artist, Catalog, Interaction.\n\n**Workflow recommandé :**\n1. Register un buyer → Login → copier le token\n2. Register un admin → Login → créer catégories/tags\n3. Register un artist → Login → créer profil, shop, produits\n4. Tester favoris et avis sur les produits\n\n**Images produits :** Les images sont uploadées sur MinIO (Object Storage). Les requêtes Create/Update Product utilisent `multipart/form-data` avec le champ `images` (fichiers). Les URLs publiques MinIO sont stockées en base.\n\nLes variables `{{user_url}}`, `{{artist_url}}`, `{{catalog_url}}`, `{{interaction_url}}` et `{{token}}` sont pré-configurées.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "user_url", "value": "http://localhost:3001" },
+		{ "key": "artist_url", "value": "http://localhost:3002" },
+		{ "key": "catalog_url", "value": "http://localhost:3003" },
+		{ "key": "interaction_url", "value": "http://localhost:3004" },
+		{ "key": "token", "value": "" },
+		{ "key": "refresh_token", "value": "" },
+		{ "key": "user_id", "value": "1" },
+		{ "key": "artist_id", "value": "1" },
+		{ "key": "shop_id", "value": "1" },
+		{ "key": "product_id", "value": "1" },
+		{ "key": "category_id", "value": "1" },
+		{ "key": "tag_id", "value": "1" },
+		{ "key": "address_id", "value": "1" },
+		{ "key": "review_id", "value": "1" }
+	],
+	"item": [
+		{
+			"name": "🩺 Health Checks",
+			"item": [
+				{
+					"name": "User Service Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{user_url}}/health", "host": ["{{user_url}}"], "path": ["health"] }
+					}
+				},
+				{
+					"name": "Artist Service Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{artist_url}}/health", "host": ["{{artist_url}}"], "path": ["health"] }
+					}
+				},
+				{
+					"name": "Catalog Service Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{catalog_url}}/health", "host": ["{{catalog_url}}"], "path": ["health"] }
+					}
+				},
+				{
+					"name": "Interaction Service Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{interaction_url}}/health", "host": ["{{interaction_url}}"], "path": ["health"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "🔐 Auth",
+			"item": [
+				{
+					"name": "Register (buyer)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.accessToken) {",
+									"    pm.collectionVariables.set('token', res.accessToken);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"    pm.collectionVariables.set('user_id', res.user.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstname\": \"Jean\",\n  \"lastname\": \"Dupont\",\n  \"email\": \"jean@test.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/auth/register", "host": ["{{user_url}}"], "path": ["api", "auth", "register"] }
+					}
+				},
+				{
+					"name": "Register (artist)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.accessToken) {",
+									"    pm.collectionVariables.set('token', res.accessToken);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"    pm.collectionVariables.set('user_id', res.user.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstname\": \"Marie\",\n  \"lastname\": \"Artiste\",\n  \"email\": \"marie@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"artist\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/auth/register", "host": ["{{user_url}}"], "path": ["api", "auth", "register"] }
+					}
+				},
+				{
+					"name": "Register (admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.accessToken) {",
+									"    pm.collectionVariables.set('token', res.accessToken);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"    pm.collectionVariables.set('user_id', res.user.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstname\": \"Admin\",\n  \"lastname\": \"System\",\n  \"email\": \"admin@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"admin\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/auth/register", "host": ["{{user_url}}"], "path": ["api", "auth", "register"] }
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.accessToken) {",
+									"    pm.collectionVariables.set('token', res.accessToken);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"    pm.collectionVariables.set('user_id', res.user.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"marie@test.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/auth/login", "host": ["{{user_url}}"], "path": ["api", "auth", "login"] }
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.accessToken) {",
+									"    pm.collectionVariables.set('token', res.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/auth/refresh", "host": ["{{user_url}}"], "path": ["api", "auth", "refresh"] }
+					}
+				},
+				{
+					"name": "Me (profil courant)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{user_url}}/api/auth/me", "host": ["{{user_url}}"], "path": ["api", "auth", "me"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "👤 Users",
+			"item": [
+				{
+					"name": "List All Users (admin)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{user_url}}/api/users", "host": ["{{user_url}}"], "path": ["api", "users"] }
+					}
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{user_url}}/api/users/{{user_id}}", "host": ["{{user_url}}"], "path": ["api", "users", "{{user_id}}"] }
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstname\": \"Jean-Pierre\",\n  \"lastname\": \"Dupont\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/users/{{user_id}}", "host": ["{{user_url}}"], "path": ["api", "users", "{{user_id}}"] }
+					}
+				},
+				{
+					"name": "Toggle Active (admin)",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{user_url}}/api/users/{{user_id}}/toggle-active", "host": ["{{user_url}}"], "path": ["api", "users", "{{user_id}}", "toggle-active"] }
+					}
+				},
+				{
+					"name": "Change Role (admin)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"artist\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/users/{{user_id}}/role", "host": ["{{user_url}}"], "path": ["api", "users", "{{user_id}}", "role"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "📍 Addresses",
+			"item": [
+				{
+					"name": "List My Addresses",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{user_url}}/api/addresses", "host": ["{{user_url}}"], "path": ["api", "addresses"] }
+					}
+				},
+				{
+					"name": "Create Address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('address_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"label\": \"Maison\",\n  \"street\": \"12 rue des Lilas\",\n  \"city\": \"Paris\",\n  \"postal_code\": \"75011\",\n  \"country\": \"France\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/addresses", "host": ["{{user_url}}"], "path": ["api", "addresses"] }
+					}
+				},
+				{
+					"name": "Update Address",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"label\": \"Bureau\",\n  \"city\": \"Lyon\",\n  \"postal_code\": \"69001\"\n}"
+						},
+						"url": { "raw": "{{user_url}}/api/addresses/{{address_id}}", "host": ["{{user_url}}"], "path": ["api", "addresses", "{{address_id}}"] }
+					}
+				},
+				{
+					"name": "Delete Address",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{user_url}}/api/addresses/{{address_id}}", "host": ["{{user_url}}"], "path": ["api", "addresses", "{{address_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "🎨 Artist Profiles",
+			"item": [
+				{
+					"name": "List Validated Artists (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{artist_url}}/api/artists", "host": ["{{artist_url}}"], "path": ["api", "artists"] }
+					}
+				},
+				{
+					"name": "Get Artist by ID (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{artist_url}}/api/artists/{{artist_id}}", "host": ["{{artist_url}}"], "path": ["api", "artists", "{{artist_id}}"] }
+					}
+				},
+				{
+					"name": "Create Artist Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('artist_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "bio", "value": "Artisane passionnée de céramique depuis 10 ans.", "type": "text" },
+								{ "key": "social_links", "value": "{\"instagram\": \"@marie_ceramique\", \"website\": \"https://marie-art.fr\"}", "type": "text" },
+								{ "key": "banner", "type": "file", "src": [], "description": "Image bannière du profil artiste (jpeg, png, webp, gif)" },
+								{ "key": "logo", "type": "file", "src": [], "description": "Logo / avatar de l'artiste (jpeg, png, webp, gif)" }
+							]
+						},
+						"url": { "raw": "{{artist_url}}/api/artists", "host": ["{{artist_url}}"], "path": ["api", "artists"] },
+						"description": "Créer un profil artiste avec upload de bannière et logo sur MinIO."
+					}
+				},
+				{
+					"name": "My Artist Profile",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{artist_url}}/api/artists/profile/me", "host": ["{{artist_url}}"], "path": ["api", "artists", "profile", "me"] }
+					}
+				},
+				{
+					"name": "Update My Artist Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "bio", "value": "Artisane passionnée de céramique et de poterie depuis 15 ans.", "type": "text" },
+								{ "key": "social_links", "value": "{\"instagram\": \"@marie_ceramique\", \"tiktok\": \"@marie_art\"}", "type": "text" },
+								{ "key": "banner", "type": "file", "src": [], "description": "Nouvelle bannière (remplace l'ancienne). Laisser vide pour conserver." },
+								{ "key": "logo", "type": "file", "src": [], "description": "Nouveau logo (remplace l'ancien). Laisser vide pour conserver." }
+							]
+						},
+						"url": { "raw": "{{artist_url}}/api/artists/profile/me", "host": ["{{artist_url}}"], "path": ["api", "artists", "profile", "me"] },
+						"description": "Modifier son profil artiste. Envoyer un fichier dans 'banner' ou 'logo' remplace l'ancienne image (supprimée de MinIO)."
+					}
+				},
+				{
+					"name": "Admin — List All Artists",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{artist_url}}/api/artists/admin/all", "host": ["{{artist_url}}"], "path": ["api", "artists", "admin", "all"] }
+					}
+				},
+				{
+					"name": "Admin — Toggle Validation",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{artist_url}}/api/artists/{{artist_id}}/toggle-validation", "host": ["{{artist_url}}"], "path": ["api", "artists", "{{artist_id}}", "toggle-validation"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "🏪 Shops",
+			"item": [
+				{
+					"name": "Get Shops by Artist (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{artist_url}}/api/shops/artist/{{artist_id}}", "host": ["{{artist_url}}"], "path": ["api", "shops", "artist", "{{artist_id}}"] }
+					}
+				},
+				{
+					"name": "Get Shop by ID (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{artist_url}}/api/shops/{{shop_id}}", "host": ["{{artist_url}}"], "path": ["api", "shops", "{{shop_id}}"] }
+					}
+				},
+				{
+					"name": "Create Shop",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('shop_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "name", "value": "L'Atelier de Marie", "type": "text" },
+								{ "key": "description", "value": "Céramiques artisanales faites main", "type": "text" },
+								{ "key": "location", "value": "Paris, France", "type": "text" },
+								{ "key": "banner", "type": "file", "src": [], "description": "Image bannière de la boutique (jpeg, png, webp, gif)" },
+								{ "key": "logo", "type": "file", "src": [], "description": "Logo / image de profil de la boutique (jpeg, png, webp, gif)" }
+							]
+						},
+						"url": { "raw": "{{artist_url}}/api/shops", "host": ["{{artist_url}}"], "path": ["api", "shops"] },
+						"description": "Créer une boutique avec upload de bannière et logo sur MinIO. Les URLs publiques MinIO sont stockées en base."
+					}
+				},
+				{
+					"name": "Update Shop",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "name", "value": "L'Atelier de Marie — Céramique", "type": "text" },
+								{ "key": "description", "value": "Céramiques et poteries artisanales faites main à Paris", "type": "text" },
+								{ "key": "banner", "type": "file", "src": [], "description": "Nouvelle bannière (remplace l'ancienne). Laisser vide pour conserver." },
+								{ "key": "logo", "type": "file", "src": [], "description": "Nouveau logo (remplace l'ancien). Laisser vide pour conserver." }
+							]
+						},
+						"url": { "raw": "{{artist_url}}/api/shops/{{shop_id}}", "host": ["{{artist_url}}"], "path": ["api", "shops", "{{shop_id}}"] },
+						"description": "Modifier une boutique. Envoyer un fichier dans 'banner' ou 'logo' remplace l'ancienne image (supprimée de MinIO). Sans fichier, l'image existante est conservée."
+					}
+				},
+				{
+					"name": "Delete Shop",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{artist_url}}/api/shops/{{shop_id}}", "host": ["{{artist_url}}"], "path": ["api", "shops", "{{shop_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "📂 Categories",
+			"item": [
+				{
+					"name": "List Categories (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{catalog_url}}/api/categories", "host": ["{{catalog_url}}"], "path": ["api", "categories"] }
+					}
+				},
+				{
+					"name": "Get Category by ID (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{catalog_url}}/api/categories/{{category_id}}", "host": ["{{catalog_url}}"], "path": ["api", "categories", "{{category_id}}"] }
+					}
+				},
+				{
+					"name": "Create Category (admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('category_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Céramique\",\n  \"description\": \"Objets en céramique artisanale\"\n}"
+						},
+						"url": { "raw": "{{catalog_url}}/api/categories", "host": ["{{catalog_url}}"], "path": ["api", "categories"] }
+					}
+				},
+				{
+					"name": "Update Category (admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Céramique & Poterie\",\n  \"description\": \"Objets en céramique et poterie artisanale\"\n}"
+						},
+						"url": { "raw": "{{catalog_url}}/api/categories/{{category_id}}", "host": ["{{catalog_url}}"], "path": ["api", "categories", "{{category_id}}"] }
+					}
+				},
+				{
+					"name": "Delete Category (admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{catalog_url}}/api/categories/{{category_id}}", "host": ["{{catalog_url}}"], "path": ["api", "categories", "{{category_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "🏷️ Tags",
+			"item": [
+				{
+					"name": "List Tags (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{catalog_url}}/api/tags", "host": ["{{catalog_url}}"], "path": ["api", "tags"] }
+					}
+				},
+				{
+					"name": "Create Tag (admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('tag_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"fait-main\"\n}"
+						},
+						"url": { "raw": "{{catalog_url}}/api/tags", "host": ["{{catalog_url}}"], "path": ["api", "tags"] }
+					}
+				},
+				{
+					"name": "Delete Tag (admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{catalog_url}}/api/tags/{{tag_id}}", "host": ["{{catalog_url}}"], "path": ["api", "tags", "{{tag_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "🛍️ Products",
+			"item": [
+				{
+					"name": "List Products (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{catalog_url}}/api/products?page=1&limit=20",
+							"host": ["{{catalog_url}}"],
+							"path": ["api", "products"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" },
+								{ "key": "category_id", "value": "{{category_id}}", "disabled": true },
+								{ "key": "tag", "value": "{{tag_id}}", "disabled": true },
+								{ "key": "search", "value": "bol", "disabled": true },
+								{ "key": "shop_id", "value": "{{shop_id}}", "disabled": true }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Product by ID (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{catalog_url}}/api/products/{{product_id}}", "host": ["{{catalog_url}}"], "path": ["api", "products", "{{product_id}}"] }
+					}
+				},
+				{
+					"name": "Create Product (artist)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('product_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "shop_id", "value": "{{shop_id}}", "type": "text" },
+								{ "key": "category_id", "value": "{{category_id}}", "type": "text" },
+								{ "key": "title", "value": "Bol en céramique bleu", "type": "text" },
+								{ "key": "description", "value": "Magnifique bol tourné à la main, émaillé bleu cobalt.", "type": "text" },
+								{ "key": "price", "value": "35.00", "type": "text" },
+								{ "key": "stock", "value": "10", "type": "text" },
+								{ "key": "creation_time", "value": "3", "type": "text" },
+								{ "key": "delivery_time", "value": "5", "type": "text" },
+								{ "key": "tags", "value": "[{{tag_id}}]", "type": "text" },
+								{ "key": "images", "type": "file", "src": [], "description": "Image(s) du produit (jpeg, png, webp, gif). Sélectionner un ou plusieurs fichiers." },
+								{ "key": "images", "type": "file", "src": [], "description": "Image supplémentaire (optionnel)", "disabled": true }
+							]
+						},
+						"url": { "raw": "{{catalog_url}}/api/products", "host": ["{{catalog_url}}"], "path": ["api", "products"] },
+						"description": "Créer un produit avec upload d'images sur MinIO. Les images sont envoyées en multipart/form-data dans le champ 'images'. Les URLs MinIO sont stockées en base."
+					}
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "title", "value": "Bol en céramique bleu cobalt", "type": "text" },
+								{ "key": "price", "value": "39.90", "type": "text" },
+								{ "key": "stock", "value": "8", "type": "text" },
+								{ "key": "description", "value": "Magnifique bol tourné à la main, émaillé bleu cobalt. Édition limitée.", "type": "text", "disabled": true },
+								{ "key": "tags", "value": "[{{tag_id}}]", "type": "text", "disabled": true },
+								{ "key": "images", "type": "file", "src": [], "description": "Nouvelles images (remplace toutes les anciennes). Laisser vide pour conserver les images existantes." }
+							]
+						},
+						"url": { "raw": "{{catalog_url}}/api/products/{{product_id}}", "host": ["{{catalog_url}}"], "path": ["api", "products", "{{product_id}}"] },
+						"description": "Modifier un produit. Envoyer des fichiers dans 'images' remplace toutes les anciennes images (supprimées de MinIO). Sans fichier, les images existantes sont conservées."
+					}
+				},
+				{
+					"name": "Update Stock",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stock\": 25\n}"
+						},
+						"url": { "raw": "{{catalog_url}}/api/products/{{product_id}}/stock", "host": ["{{catalog_url}}"], "path": ["api", "products", "{{product_id}}", "stock"] }
+					}
+				},
+				{
+					"name": "Toggle Active",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{catalog_url}}/api/products/{{product_id}}/toggle-active", "host": ["{{catalog_url}}"], "path": ["api", "products", "{{product_id}}", "toggle-active"] }
+					}
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{catalog_url}}/api/products/{{product_id}}", "host": ["{{catalog_url}}"], "path": ["api", "products", "{{product_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "❤️ Favorites",
+			"item": [
+				{
+					"name": "List My Favorites",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{interaction_url}}/api/favorites?page=1&limit=20",
+							"host": ["{{interaction_url}}"],
+							"path": ["api", "favorites"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Check if Product is Favorite",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{interaction_url}}/api/favorites/check/{{product_id}}", "host": ["{{interaction_url}}"], "path": ["api", "favorites", "check", "{{product_id}}"] }
+					}
+				},
+				{
+					"name": "Add to Favorites",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"product_id\": {{product_id}}\n}"
+						},
+						"url": { "raw": "{{interaction_url}}/api/favorites", "host": ["{{interaction_url}}"], "path": ["api", "favorites"] }
+					}
+				},
+				{
+					"name": "Remove from Favorites",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{interaction_url}}/api/favorites/{{product_id}}", "host": ["{{interaction_url}}"], "path": ["api", "favorites", "{{product_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "⭐ Reviews",
+			"item": [
+				{
+					"name": "List Product Reviews (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{interaction_url}}/api/reviews/product/{{product_id}}?page=1&limit=20",
+							"host": ["{{interaction_url}}"],
+							"path": ["api", "reviews", "product", "{{product_id}}"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Average Rating (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{interaction_url}}/api/reviews/product/{{product_id}}/average", "host": ["{{interaction_url}}"], "path": ["api", "reviews", "product", "{{product_id}}", "average"] }
+					}
+				},
+				{
+					"name": "List My Reviews",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{interaction_url}}/api/reviews/me?page=1&limit=20",
+							"host": ["{{interaction_url}}"],
+							"path": ["api", "reviews", "me"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Review",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('review_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"product_id\": {{product_id}},\n  \"rating\": 5,\n  \"comment\": \"Excellente qualité, produit magnifique et bien emballé. Très satisfait!\"\n}"
+						},
+						"url": { "raw": "{{interaction_url}}/api/reviews", "host": ["{{interaction_url}}"], "path": ["api", "reviews"] }
+					}
+				},
+				{
+					"name": "Delete Review",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{interaction_url}}/api/reviews/{{review_id}}", "host": ["{{interaction_url}}"], "path": ["api", "reviews", "{{review_id}}"] }
+					}
+				}
+			]
+		}
+	]
+}

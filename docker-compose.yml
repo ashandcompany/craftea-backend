@@ -1,0 +1,193 @@
+services:
+  # ───────────── PostgreSQL ─────────────
+
+  db:
+    image: postgres:17-alpine
+    container_name: craftea-postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: craftea
+      POSTGRES_PASSWORD: craftea_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U craftea"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    image: adminer
+    container_name: craftea-adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ───────────── User Service (NestJS) ─────────────
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: user-service
+    container_name: craftea-user-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_users
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: craftea_jwt_refresh_secret_dev
+      JWT_REFRESH_EXPIRES_IN: 7d
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ───────────── Artist Service (NestJS) ─────────────
+  artist-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: artist-service
+    container_name: craftea-artist-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_artists
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: craftea_minio_secret
+      MINIO_BUCKET: artist-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localhost:9000
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # ───────────── Catalog Service (NestJS) ─────────────
+  catalog-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: catalog-service
+    container_name: craftea-catalog-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_catalog
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: craftea_minio_secret
+      MINIO_BUCKET: product-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localhost:9000
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
+      REDIS_CACHE_TTL: 3600
+      REDIS_IMAGE_CACHE_TTL: 86400
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+  # ───────────── Interaction Service (NestJS) ─────────────
+  interaction-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: interaction-service
+    container_name: craftea-interaction-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_interactions
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ───────────── MinIO (Object Storage) ─────────────
+  minio:
+    image: minio/minio:latest
+    container_name: craftea-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: craftea_minio
+      MINIO_ROOT_PASSWORD: craftea_minio_secret
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ───────────── Redis ─────────────
+  cache:
+    image: redis:8.6.1-alpine
+    container_name: craftea-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
+    volumes: 
+      - cache:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  minio_data:
+  cache:
+    driver: local
