@@ -119,12 +119,15 @@ services:
       REDIS_PASSWORD: eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
       REDIS_CACHE_TTL: 3600
       REDIS_IMAGE_CACHE_TTL: 86400
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
     depends_on:
       db:
         condition: service_healthy
       minio:
         condition: service_healthy
       cache:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   # ───────────── Interaction Service (NestJS) ─────────────
@@ -186,8 +189,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # ───────────── RabbitMQ ─────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: craftea-rabbitmq
+    restart: always
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: craftea
+      RABBITMQ_DEFAULT_PASS: craftea_pass
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
 volumes:
   postgres_data:
   minio_data:
+  rabbitmq_data:
   cache:
     driver: local

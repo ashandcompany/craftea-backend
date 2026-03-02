@@ -9,6 +9,7 @@ import { RedisService } from '../redis/redis.service.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import { QueryProductDto } from './dto/query-product.dto.js';
+import { RabbitmqService, ProductEvent } from '../rabbitmq/rabbitmq.service.js';
 
 @Injectable()
 export class ProductsService {
@@ -18,6 +19,7 @@ export class ProductsService {
     @InjectRepository(Tag) private tagsRepo: Repository<Tag>,
     private minioService: MinioService,
     private redis: RedisService,
+    private rabbitmq: RabbitmqService,
   ) {}
 
   async create(dto: CreateProductDto, files: Express.Multer.File[]) {
@@ -52,7 +54,18 @@ export class ProductsService {
 
     await this.redis.invalidateCache('products:list:*');
 
-    return this.findByIdFull(product.id);
+    const saved = await this.findByIdFull(product.id);
+
+    await this.rabbitmq.publish(ProductEvent.CREATED, {
+      id: saved.id,
+      shop_id: saved.shop_id,
+      title: saved.title,
+      price: Number(saved.price),
+      stock: saved.stock,
+      category_id: saved.category_id,
+    });
+
+    return saved;
   }
 
   async findAll(query: QueryProductDto) {
@@ -175,7 +188,19 @@ export class ProductsService {
     await this.redis.invalidateCache(`products:${product.id}`);
     await this.redis.invalidateCache('products:list:*');
 
-    return this.findByIdFull(product.id);
+    const updated = await this.findByIdFull(product.id);
+
+    await this.rabbitmq.publish(ProductEvent.UPDATED, {
+      id: updated.id,
+      shop_id: updated.shop_id,
+      title: updated.title,
+      price: Number(updated.price),
+      stock: updated.stock,
+      category_id: updated.category_id,
+      is_active: updated.is_active,
+    });
+
+    return updated;
   }
 
   async toggleActive(id: number) {
@@ -218,6 +243,8 @@ export class ProductsService {
 
     await this.redis.invalidateCache(`products:${id}`);
     await this.redis.invalidateCache('products:list:*');
+
+    await this.rabbitmq.publish(ProductEvent.DELETED, { id });
 
     return { message: 'Produit supprimé' };
   }

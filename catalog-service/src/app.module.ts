@@ -8,6 +8,7 @@ import { TagsModule } from './tags/tags.module.js';
 import { ImagesModule } from './images/images.module.js';
 import { MinioModule } from './minio/minio.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module.js';
 import { AppController } from './app.controller.js';
 
 @Module({
@@ -30,6 +31,7 @@ import { AppController } from './app.controller.js';
     AuthModule,
     MinioModule,
     RedisModule,
+    RabbitmqModule,
     ProductsModule,
     CategoriesModule,
     TagsModule,
