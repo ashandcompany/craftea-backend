@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, In } from 'typeorm';
 import { Product } from './entities/product.entity.js';
@@ -221,6 +221,25 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Produit introuvable');
 
     product.stock = stock;
+    await this.productsRepo.save(product);
+
+    await this.redis.invalidateCache(`products:${product.id}`);
+    await this.redis.invalidateCache('products:list:*');
+
+    return { id: product.id, stock: product.stock };
+  }
+
+  async decrementStock(id: number, quantity: number) {
+    const product = await this.productsRepo.findOne({ where: { id } });
+    if (!product) throw new NotFoundException('Produit introuvable');
+
+    if (product.stock < quantity) {
+      throw new BadRequestException(
+        `Stock insuffisant pour le produit ${id} (dispo: ${product.stock}, demandé: ${quantity})`,
+      );
+    }
+
+    product.stock -= quantity;
     await this.productsRepo.save(product);
 
     await this.redis.invalidateCache(`products:${product.id}`);

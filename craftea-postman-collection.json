@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "craftea-backend-2026",
 		"name": "Craftea Backend",
-		"description": "Collection complète pour tester les 4 micro-services Craftea : User, Artist, Catalog, Interaction.\n\n**Workflow recommandé :**\n1. Register un buyer → Login → copier le token\n2. Register un admin → Login → créer catégories/tags\n3. Register un artist → Login → créer profil, shop, produits\n4. Tester favoris et avis sur les produits\n\n**Images produits :** Les images sont uploadées sur MinIO (Object Storage). Les requêtes Create/Update Product utilisent `multipart/form-data` avec le champ `images` (fichiers). Les URLs publiques MinIO sont stockées en base.\n\nLes variables `{{user_url}}`, `{{artist_url}}`, `{{catalog_url}}`, `{{interaction_url}}` et `{{token}}` sont pré-configurées.",
+		"description": "Collection complète pour tester les 5 micro-services Craftea : User, Artist, Catalog, Interaction, Order.\n\n**Workflow recommandé :**\n1. Register un buyer → Login → copier le token\n2. Register un admin → Login → créer catégories/tags\n3. Register un artist → Login → créer profil, shop, produits\n4. Tester favoris et avis sur les produits\n5. Créer des commandes\n\n**Images produits :** Les images sont uploadées sur MinIO (Object Storage). Les requêtes Create/Update Product utilisent `multipart/form-data` avec le champ `images` (fichiers). Les URLs publiques MinIO sont stockées en base.\n\nLes variables `{{user_url}}`, `{{artist_url}}`, `{{catalog_url}}`, `{{interaction_url}}`, `{{order_url}}` et `{{token}}` sont pré-configurées.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -10,6 +10,7 @@
 		{ "key": "artist_url", "value": "http://localhost:3002" },
 		{ "key": "catalog_url", "value": "http://localhost:3003" },
 		{ "key": "interaction_url", "value": "http://localhost:3004" },
+		{ "key": "order_url", "value": "http://localhost:3005" },
 		{ "key": "token", "value": "" },
 		{ "key": "refresh_token", "value": "" },
 		{ "key": "user_id", "value": "1" },
@@ -19,7 +20,8 @@
 		{ "key": "category_id", "value": "1" },
 		{ "key": "tag_id", "value": "1" },
 		{ "key": "address_id", "value": "1" },
-		{ "key": "review_id", "value": "1" }
+		{ "key": "review_id", "value": "1" },
+		{ "key": "order_id", "value": "1" }
 	],
 	"item": [
 		{
@@ -55,6 +57,14 @@
 						"method": "GET",
 						"header": [],
 						"url": { "raw": "{{interaction_url}}/health", "host": ["{{interaction_url}}"], "path": ["health"] }
+					}
+				},
+				{
+					"name": "Order Service Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{order_url}}/health", "host": ["{{order_url}}"], "path": ["health"] }
 					}
 				}
 			]
@@ -803,6 +813,79 @@
 						"method": "DELETE",
 						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
 						"url": { "raw": "{{interaction_url}}/api/favorites/{{product_id}}", "host": ["{{interaction_url}}"], "path": ["api", "favorites", "{{product_id}}"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "🛒 Orders",
+			"item": [
+				{
+					"name": "Create Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('order_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{product_id}},\n      \"quantity\": 2,\n      \"price\": 35.00\n    }\n  ]\n}"
+						},
+						"url": { "raw": "{{order_url}}/api/orders", "host": ["{{order_url}}"], "path": ["api", "orders"] },
+						"description": "Créer une commande. Le total est calculé automatiquement (price × quantity). Les prix sont copiés dans order_items."
+					}
+				},
+				{
+					"name": "List My Orders (Historique)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{order_url}}/api/orders/my", "host": ["{{order_url}}"], "path": ["api", "orders", "my"] }
+					}
+				},
+				{
+					"name": "List All Orders (admin)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{order_url}}/api/orders", "host": ["{{order_url}}"], "path": ["api", "orders"] }
+					}
+				},
+				{
+					"name": "Get Order by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{order_url}}/api/orders/{{order_id}}", "host": ["{{order_url}}"], "path": ["api", "orders", "{{order_id}}"] }
+					}
+				},
+				{
+					"name": "Update Order Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"confirmed\"\n}"
+						},
+						"url": { "raw": "{{order_url}}/api/orders/{{order_id}}/status", "host": ["{{order_url}}"], "path": ["api", "orders", "{{order_id}}", "status"] },
+						"description": "Statut: pending, confirmed, preparing, shipped, delivered, cancelled. Admin peut mettre tous les statuts. User peut seulement annuler (cancelled)."
 					}
 				}
 			]

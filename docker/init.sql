@@ -5,9 +5,11 @@ CREATE DATABASE craftea_users;
 CREATE DATABASE craftea_artists;
 CREATE DATABASE craftea_catalog;
 CREATE DATABASE craftea_interactions;
+CREATE DATABASE craftea_orders;
 
 -- Accorder tous les privilèges à l'utilisateur craftea
 GRANT ALL PRIVILEGES ON DATABASE craftea_users TO craftea;
 GRANT ALL PRIVILEGES ON DATABASE craftea_artists TO craftea;
 GRANT ALL PRIVILEGES ON DATABASE craftea_catalog TO craftea;
 GRANT ALL PRIVILEGES ON DATABASE craftea_interactions TO craftea;
+GRANT ALL PRIVILEGES ON DATABASE craftea_orders TO craftea;

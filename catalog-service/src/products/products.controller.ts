@@ -76,6 +76,14 @@ export class ProductsController {
     return this.productsService.updateStock(id, stock);
   }
 
+  @Patch(':id/decrement-stock')
+  decrementStock(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('quantity', ParseIntPipe) quantity: number,
+  ) {
+    return this.productsService.decrementStock(id, quantity);
+  }
+
   @Patch(':id/toggle-active')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist', 'admin')

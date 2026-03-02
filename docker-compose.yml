@@ -153,6 +153,30 @@ services:
       db:
         condition: service_healthy
 
+  # ───────────── Order Service (NestJS) ─────────────
+  order-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: order-service
+    container_name: craftea-order-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_orders
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+      CATALOG_URL: http://catalog-service:3003
+    depends_on:
+      db:
+        condition: service_healthy
+
   # ───────────── MinIO (Object Storage) ─────────────
   minio:
     image: minio/minio:latest
