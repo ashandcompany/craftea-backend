@@ -201,6 +201,34 @@ services:
       db:
         condition: service_healthy
 
+  # ───────────── Payment Service (NestJS) ─────────────
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: payment-service
+    container_name: craftea-payment-service
+    restart: unless-stopped
+    ports:
+      - "3007:3007"
+    environment:
+      PORT: 3007
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_payments
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+      SQUARE_BASE_URL: https://connect.squareupsandbox.com/v2
+      SQUARE_ACCESS_TOKEN: EAAAl3-of7NDTyE5gKztJvpt_70wb9cQJAZg8r3N1kshdgPwr7D5KIawkkXs_vHi
+      SQUARE_API_VERSION: "2026-01-22"
+      SQUARE_LOCATION_ID: sandbox-sq0idb-91f6lrkXWdWH4vJBf9ol8g
+      ORDER_URL: http://order-service:3005
+    depends_on:
+      db:
+        condition: service_healthy
+
   # ───────────── MinIO (Object Storage) ─────────────
   minio:
     image: minio/minio:latest
