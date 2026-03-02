@@ -177,6 +177,29 @@ services:
       db:
         condition: service_healthy
 
+  # ───────────── Cart Service (NestJS) ─────────────
+  cart-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: cart-service
+    container_name: craftea-cart-service
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    environment:
+      PORT: 3006
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_carts
+      DB_USER: craftea
+      DB_PASS: craftea_pass
+      JWT_SECRET: craftea_jwt_secret_dev
+    depends_on:
+      db:
+        condition: service_healthy
+
   # ───────────── MinIO (Object Storage) ─────────────
   minio:
     image: minio/minio:latest
