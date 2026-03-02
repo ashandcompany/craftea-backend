@@ -221,10 +221,11 @@ services:
       DB_PASS: craftea_pass
       JWT_SECRET: craftea_jwt_secret_dev
       SQUARE_BASE_URL: https://connect.squareupsandbox.com/v2
-      SQUARE_ACCESS_TOKEN: EAAAl3-of7NDTyE5gKztJvpt_70wb9cQJAZg8r3N1kshdgPwr7D5KIawkkXs_vHi
       SQUARE_API_VERSION: "2026-01-22"
-      SQUARE_LOCATION_ID: sandbox-sq0idb-91f6lrkXWdWH4vJBf9ol8g
       ORDER_URL: http://order-service:3005
+    secrets:
+      - square_access_token
+      - square_location_id
     depends_on:
       db:
         condition: service_healthy
@@ -283,6 +284,12 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+
+secrets:
+  square_access_token:
+    file: ./docker/secrets/square_access_token.txt
+  square_location_id:
+    file: ./docker/secrets/square_location_id.txt
 
 volumes:
   postgres_data:
