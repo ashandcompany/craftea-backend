@@ -21,7 +21,9 @@
 		{ "key": "tag_id", "value": "1" },
 		{ "key": "address_id", "value": "1" },
 		{ "key": "review_id", "value": "1" },
-		{ "key": "order_id", "value": "1" }
+		{ "key": "order_id", "value": "1" },
+		{ "key": "payment_url", "value": "http://localhost:3007" },
+		{ "key": "payment_id", "value": "1" }
 	],
 	"item": [
 		{
@@ -65,6 +67,14 @@
 						"method": "GET",
 						"header": [],
 						"url": { "raw": "{{order_url}}/health", "host": ["{{order_url}}"], "path": ["health"] }
+					}
+				},
+				{
+					"name": "Payment Service Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{payment_url}}/api/health", "host": ["{{payment_url}}"], "path": ["api", "health"] }
 					}
 				}
 			]
@@ -886,6 +896,87 @@
 						},
 						"url": { "raw": "{{order_url}}/api/orders/{{order_id}}/status", "host": ["{{order_url}}"], "path": ["api", "orders", "{{order_id}}", "status"] },
 						"description": "Statut: pending, confirmed, preparing, shipped, delivered, cancelled. Admin peut mettre tous les statuts. User peut seulement annuler (cancelled)."
+					}
+				}
+			]
+		},
+		{
+			"name": "💳 Payments",
+			"item": [
+				{
+					"name": "Create Payment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.id) pm.collectionVariables.set('payment_id', res.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"order_id\": {{order_id}},\n  \"amount\": 70.00,\n  \"currency\": \"EUR\",\n  \"source_id\": \"cnon:card-nonce-ok\"\n}"
+						},
+						"url": { "raw": "{{payment_url}}/api/payments", "host": ["{{payment_url}}"], "path": ["api", "payments"] },
+						"description": "Crée un paiement via Square Sandbox. source_id=\"cnon:card-nonce-ok\" simule une carte valide. amount en euros (converti automatiquement en centimes avant envoi à Square)."
+					}
+				},
+				{
+					"name": "List My Payments",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{payment_url}}/api/payments/my", "host": ["{{payment_url}}"], "path": ["api", "payments", "my"] }
+					}
+				},
+				{
+					"name": "Get Payments by Order",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{payment_url}}/api/payments/order/{{order_id}}", "host": ["{{payment_url}}"], "path": ["api", "payments", "order", "{{order_id}}"] }
+					}
+				},
+				{
+					"name": "Get Payment by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{payment_url}}/api/payments/{{payment_id}}", "host": ["{{payment_url}}"], "path": ["api", "payments", "{{payment_id}}"] }
+					}
+				},
+				{
+					"name": "Refund Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Commande annulée par le client\"\n}"
+						},
+						"url": { "raw": "{{payment_url}}/api/payments/{{payment_id}}/refund", "host": ["{{payment_url}}"], "path": ["api", "payments", "{{payment_id}}", "refund"] },
+						"description": "Rembourse intégralement un paiement en statut 'completed'. Appelle Square /v2/refunds."
+					}
+				},
+				{
+					"name": "List All Payments (admin)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": { "raw": "{{payment_url}}/api/payments", "host": ["{{payment_url}}"], "path": ["api", "payments"] }
 					}
 				}
 			]

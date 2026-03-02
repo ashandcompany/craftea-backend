@@ -74,7 +74,6 @@ export class SquareService {
         currency: req.currency,
       },
       source_id: req.source_id,
-      location_id: this.locationId || undefined,
     };
 
     this.logger.log(`Creating Square payment: ${req.idempotency_key}`);
