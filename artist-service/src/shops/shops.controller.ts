@@ -34,6 +34,11 @@ export class ShopsController {
     return this.shopsService.findByArtist(artistId);
   }
 
+  @Get('user/:userId')
+  findByUser(@Param('userId', ParseIntPipe) userId: number) {
+    return this.shopsService.findByUserId(userId);
+  }
+
   @Get(':id')
   findById(@Param('id', ParseIntPipe) id: number) {
     return this.shopsService.findById(id);

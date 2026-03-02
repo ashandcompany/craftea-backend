@@ -33,6 +33,14 @@ export class OrdersController {
     return this.ordersService.findByUser(req.user.id);
   }
 
+  // Commandes reçues par l'artiste connecté (ses boutiques)
+  @Get('artist/my')
+  @UseGuards(RolesGuard)
+  @Roles('artist')
+  findArtistOrders(@Request() req) {
+    return this.ordersService.findByArtist(req.user.id);
+  }
+
   // Toutes les commandes (admin)
   @UseGuards(RolesGuard)
   @Roles('admin')

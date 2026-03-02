@@ -173,6 +173,7 @@ services:
       DB_PASS: craftea_pass
       JWT_SECRET: craftea_jwt_secret_dev
       CATALOG_URL: http://catalog-service:3003
+      ARTIST_URL: http://artist-service:3002
     depends_on:
       db:
         condition: service_healthy

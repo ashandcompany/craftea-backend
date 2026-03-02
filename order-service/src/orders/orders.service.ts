@@ -17,6 +17,7 @@ import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 @Injectable()
 export class OrdersService {
   private catalogUrl: string;
+  private artistUrl: string;
 
   constructor(
     @InjectRepository(Order) private ordersRepo: Repository<Order>,
@@ -25,6 +26,7 @@ export class OrdersService {
     private configService: ConfigService,
   ) {
     this.catalogUrl = this.configService.get<string>('CATALOG_URL', 'http://catalog-service:3003');
+    this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
   }
 
   async create(dto: CreateOrderDto, userId: number): Promise<Order> {
@@ -32,10 +34,19 @@ export class OrdersService {
       throw new BadRequestException('La commande doit contenir au moins un article');
     }
 
-    // Vérifier et décrémenter le stock pour chaque article
+    // Vérifier et décrémenter le stock pour chaque article, récupérer le shop_id
     const decremented: { product_id: number; quantity: number }[] = [];
+    const productShopMap = new Map<number, number>();
     try {
       for (const item of dto.items) {
+        // Récupérer le produit pour obtenir le shop_id
+        const { data: product } = await firstValueFrom(
+          this.httpService.get(`${this.catalogUrl}/api/products/${item.product_id}`),
+        );
+        if (product?.shop_id) {
+          productShopMap.set(item.product_id, product.shop_id);
+        }
+
         await firstValueFrom(
           this.httpService.patch(
             `${this.catalogUrl}/api/products/${item.product_id}/decrement-stock`,
@@ -75,6 +86,7 @@ export class OrdersService {
       items: dto.items.map((item) =>
         this.itemsRepo.create({
           product_id: item.product_id,
+          shop_id: productShopMap.get(item.product_id) ?? undefined,
           quantity: item.quantity,
           price: item.price,
         }),
@@ -110,20 +122,35 @@ export class OrdersService {
     const order = await this.ordersRepo.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Commande introuvable');
 
-    if (currentUser.role !== 'admin' && order.user_id !== currentUser.id) {
+    // Vérifier si l'utilisateur est le propriétaire, un admin, ou l'artiste de la boutique
+    const isOwner = order.user_id === currentUser.id;
+    const isAdmin = currentUser.role === 'admin';
+    const isArtist = currentUser.role === 'artist';
+    let isShopOwner = false;
+
+    if (isArtist && !isOwner) {
+      isShopOwner = await this.isArtistOwnerOfOrder(currentUser.id, order);
+    }
+
+    if (!isAdmin && !isOwner && !isShopOwner) {
       throw new ForbiddenException('Accès interdit');
     }
 
-    // Only admin can set certain statuses
-    const adminOnlyStatuses: OrderStatus[] = [
+    // Les artistes (propriétaires de la boutique) et admins peuvent gérer les statuts
+    const artistOrAdminStatuses: OrderStatus[] = [
       OrderStatus.CONFIRMED,
       OrderStatus.PREPARING,
       OrderStatus.SHIPPED,
       OrderStatus.DELIVERED,
     ];
 
-    if (adminOnlyStatuses.includes(dto.status) && currentUser.role !== 'admin') {
-      throw new ForbiddenException('Seul un admin peut définir ce statut');
+    if (artistOrAdminStatuses.includes(dto.status) && !isAdmin && !isShopOwner) {
+      throw new ForbiddenException('Seul l\'artiste ou un admin peut définir ce statut');
+    }
+
+    // Le client ne peut qu'annuler
+    if (isOwner && !isAdmin && !isShopOwner && dto.status !== OrderStatus.CANCELLED) {
+      throw new ForbiddenException('Vous ne pouvez qu\'annuler votre commande');
     }
 
     order.status = dto.status;
@@ -132,5 +159,59 @@ export class OrdersService {
 
   async findAll(): Promise<Order[]> {
     return this.ordersRepo.find({ order: { created_at: 'DESC' } });
+  }
+
+  /**
+   * Récupère les commandes contenant des produits d'une boutique donnée
+   */
+  async findByShop(shopId: number): Promise<Order[]> {
+    const orders = await this.ordersRepo
+      .createQueryBuilder('order')
+      .innerJoinAndSelect('order.items', 'item')
+      .where('item.shop_id = :shopId', { shopId })
+      .orderBy('order.created_at', 'DESC')
+      .getMany();
+
+    return orders;
+  }
+
+  /**
+   * Récupère les shop IDs d'un artiste via artist-service
+   */
+  private async getArtistShopIds(userId: number): Promise<number[]> {
+    try {
+      const { data: shops } = await firstValueFrom(
+        this.httpService.get(`${this.artistUrl}/api/shops/user/${userId}`),
+      );
+      return (shops || []).map((s: any) => s.id);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Récupère toutes les commandes pour les boutiques d'un artiste
+   */
+  async findByArtist(userId: number): Promise<Order[]> {
+    const shopIds = await this.getArtistShopIds(userId);
+    if (shopIds.length === 0) return [];
+
+    const orders = await this.ordersRepo
+      .createQueryBuilder('order')
+      .innerJoinAndSelect('order.items', 'item')
+      .where('item.shop_id IN (:...shopIds)', { shopIds })
+      .orderBy('order.created_at', 'DESC')
+      .getMany();
+
+    return orders;
+  }
+
+  /**
+   * Vérifie si un artiste (via user_id) est propriétaire d'une des boutiques de la commande
+   */
+  private async isArtistOwnerOfOrder(userId: number, order: Order): Promise<boolean> {
+    const shopIds = await this.getArtistShopIds(userId);
+    if (shopIds.length === 0) return false;
+    return order.items.some((item) => item.shop_id != null && shopIds.includes(item.shop_id));
   }
 }

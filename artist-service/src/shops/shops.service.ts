@@ -56,6 +56,12 @@ export class ShopsService {
     return this.shopsRepo.find({ where: { artist_id: artistId } });
   }
 
+  async findByUserId(userId: number) {
+    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    if (!profile) return [];
+    return this.shopsRepo.find({ where: { artist_id: profile.id } });
+  }
+
   async findById(id: number) {
     const shop = await this.shopsRepo.findOne({
       where: { id },
