@@ -119,7 +119,10 @@ export class OrdersService {
     dto: UpdateOrderStatusDto,
     currentUser: { id: number; role: string },
   ): Promise<Order> {
-    const order = await this.ordersRepo.findOne({ where: { id } });
+    const order = await this.ordersRepo.findOne({
+      where: { id },
+      relations: ['items'],
+    });
     if (!order) throw new NotFoundException('Commande introuvable');
 
     // Vérifier si l'utilisateur est le propriétaire, un admin, ou l'artiste de la boutique
@@ -153,8 +156,61 @@ export class OrdersService {
       throw new ForbiddenException('Vous ne pouvez qu\'annuler votre commande');
     }
 
+    // Si annulation : restaurer le stock et refund le paiement
+    if (dto.status === OrderStatus.CANCELLED && order.status !== OrderStatus.CANCELLED) {
+      await this.handleOrderCancellation(order);
+    }
+
     order.status = dto.status;
     return this.ordersRepo.save(order);
+  }
+
+  private async handleOrderCancellation(order: Order): Promise<void> {
+    const paymentUrl = this.configService.get<string>(
+      'PAYMENT_URL',
+      'http://payment-service:3007',
+    );
+
+    // 1. Restaurer le stock pour chaque article
+    for (const item of order.items || []) {
+      try {
+        await firstValueFrom(
+          this.httpService.patch(
+            `${this.catalogUrl}/api/products/${item.product_id}/decrement-stock`,
+            { quantity: -item.quantity }, // Négatif pour augmenter le stock
+          ),
+        );
+      } catch (error) {
+        // Log l'erreur mais continue (best-effort)
+        console.error(
+          `Failed to refund stock for product ${item.product_id}:`,
+          error,
+        );
+      }
+    }
+
+    // 2. Refund le paiement associé à cette commande
+    try {
+      const payments = await firstValueFrom(
+        this.httpService.get(`${paymentUrl}/api/payments/order/${order.id}`),
+      );
+
+      const completedPayment = payments.data?.find(
+        (p: any) => p.status === 'completed',
+      );
+
+      if (completedPayment) {
+        await firstValueFrom(
+          this.httpService.post(
+            `${paymentUrl}/api/payments/${completedPayment.id}/refund`,
+            { reason: 'Commande annulée' },
+          ),
+        );
+      }
+    } catch (error) {
+      // Log l'erreur mais continue (best-effort)
+      console.error('Failed to refund payment:', error);
+    }
   }
 
   async findAll(): Promise<Order[]> {

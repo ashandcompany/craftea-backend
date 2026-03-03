@@ -174,6 +174,7 @@ services:
       JWT_SECRET: craftea_jwt_secret_dev
       CATALOG_URL: http://catalog-service:3003
       ARTIST_URL: http://artist-service:3002
+      PAYMENT_URL: http://payment-service:3007
     depends_on:
       db:
         condition: service_healthy
