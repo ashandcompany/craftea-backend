@@ -40,8 +40,14 @@ export class Product {
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
-  creation_time: number;
+  @Column({ type: 'int', nullable: true })
+  processing_time_min: number;
+
+  @Column({ type: 'int', nullable: true })
+  processing_time_max: number;
+
+  @Column({ type: 'enum', enum: ['days', 'weeks'], nullable: true })
+  processing_time_unit: 'days' | 'weeks';
 
   @Column({ nullable: true })
   delivery_time: number;
