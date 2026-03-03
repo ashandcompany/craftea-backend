@@ -55,7 +55,17 @@ export class CreateProductDto {
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
-  delivery_time?: number;
+  delivery_time_min?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  delivery_time_max?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['days', 'weeks'])
+  delivery_time_unit?: 'days' | 'weeks';
 
   @IsOptional()
   @Transform(({ value }) => (value != null ? parseFloat(value) : undefined))

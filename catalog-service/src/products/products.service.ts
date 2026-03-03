@@ -33,7 +33,9 @@ export class ProductsService {
       processing_time_min: dto.processing_time_min,
       processing_time_max: dto.processing_time_max,
       processing_time_unit: dto.processing_time_unit,
-      delivery_time: dto.delivery_time,
+      delivery_time_min: dto.delivery_time_min,
+      delivery_time_max: dto.delivery_time_max,
+      delivery_time_unit: dto.delivery_time_unit,
       shipping_fee: dto.shipping_fee ?? null,
     });
     await this.productsRepo.save(product);
@@ -129,7 +131,7 @@ export class ProductsService {
     // Update scalar fields
     const fields: (keyof UpdateProductDto)[] = [
       'title', 'description', 'price', 'stock', 'category_id',
-      'is_active', 'processing_time_min', 'processing_time_max', 'processing_time_unit', 'delivery_time', 'shipping_fee',
+      'is_active', 'processing_time_min', 'processing_time_max', 'processing_time_unit', 'delivery_time_min', 'delivery_time_max', 'delivery_time_unit', 'shipping_fee',
     ];
     for (const f of fields) {
       if (dto[f] !== undefined) (product as any)[f] = dto[f];

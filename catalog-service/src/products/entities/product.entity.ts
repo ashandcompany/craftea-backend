@@ -49,8 +49,15 @@ export class Product {
   @Column({ type: 'enum', enum: ['days', 'weeks'], nullable: true })
   processing_time_unit: 'days' | 'weeks';
 
-  @Column({ nullable: true })
-  delivery_time: number;
+  /** Override livraison produit — null = utiliser les modes de la boutique */
+  @Column({ type: 'int', nullable: true })
+  delivery_time_min: number;
+
+  @Column({ type: 'int', nullable: true })
+  delivery_time_max: number;
+
+  @Column({ type: 'enum', enum: ['days', 'weeks'], nullable: true })
+  delivery_time_unit: 'days' | 'weeks';
 
   /** Frais de livraison spécifiques au produit (override boutique). null = utiliser les frais boutique */
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })

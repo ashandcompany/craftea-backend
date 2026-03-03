@@ -18,6 +18,7 @@ import { ShopsService } from './shops.service.js';
 import { CreateShopDto } from './dto/create-shop.dto.js';
 import { UpdateShopDto } from './dto/update-shop.dto.js';
 import { UpdateShippingProfilesDto } from './dto/shipping-profile.dto.js';
+import { UpdateShippingMethodsDto } from './dto/shipping-method.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -43,6 +44,19 @@ export class ShopsController {
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n));
     return this.shopsService.getShippingProfilesBulk(shopIds);
+  }
+
+  /**
+   * Bulk fetch shipping methods for multiple shops.
+   * GET /shops/shipping-methods/bulk?ids=1,2,3
+   */
+  @Get('shipping-methods/bulk')
+  getShippingMethodsBulk(@Query('ids') ids: string) {
+    const shopIds = (ids || '')
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+    return this.shopsService.getShippingMethodsBulk(shopIds);
   }
 
   @Get('artist/:artistId')
@@ -108,5 +122,23 @@ export class ShopsController {
     @Request() req,
   ) {
     return this.shopsService.updateShippingProfiles(id, dto, req.user.id);
+  }
+
+  // ─── Shipping methods (modes de livraison) ──────────────────────────
+
+  @Get(':id/shipping-methods')
+  getShippingMethods(@Param('id', ParseIntPipe) id: number) {
+    return this.shopsService.getShippingMethods(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Put(':id/shipping-methods')
+  updateShippingMethods(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateShippingMethodsDto,
+    @Request() req,
+  ) {
+    return this.shopsService.updateShippingMethods(id, dto, req.user.id);
   }
 }

@@ -5,20 +5,23 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Shop } from './entities/shop.entity.js';
 import { ShopShippingProfile, ShippingZone } from './entities/shop-shipping-profile.entity.js';
+import { ShopShippingMethod } from './entities/shop-shipping-method.entity.js';
 import { ArtistProfile } from '../artists/entities/artist-profile.entity.js';
 import { MinioService } from '../minio/minio.service.js';
 import { CreateShopDto } from './dto/create-shop.dto.js';
 import { UpdateShopDto } from './dto/update-shop.dto.js';
 import { UpdateShippingProfilesDto } from './dto/shipping-profile.dto.js';
+import { UpdateShippingMethodsDto } from './dto/shipping-method.dto.js';
 
 @Injectable()
 export class ShopsService {
   constructor(
     @InjectRepository(Shop) private shopsRepo: Repository<Shop>,
     @InjectRepository(ShopShippingProfile) private shippingRepo: Repository<ShopShippingProfile>,
+    @InjectRepository(ShopShippingMethod) private methodsRepo: Repository<ShopShippingMethod>,
     @InjectRepository(ArtistProfile) private artistsRepo: Repository<ArtistProfile>,
     private minioService: MinioService,
   ) {}
@@ -225,6 +228,96 @@ export class ShopsService {
       );
     }
 
+    return result;
+  }
+
+  // ─── Shipping methods (modes de livraison) ──────────────────────────
+
+  async getShippingMethods(shopId: number): Promise<ShopShippingMethod[]> {
+    const shop = await this.shopsRepo.findOne({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Boutique introuvable');
+
+    return this.methodsRepo.find({
+      where: { shop_id: shopId },
+      order: { id: 'ASC' },
+    });
+  }
+
+  async updateShippingMethods(
+    shopId: number,
+    dto: UpdateShippingMethodsDto,
+    userId: number,
+  ): Promise<ShopShippingMethod[]> {
+    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    if (!profile) throw new ForbiddenException('Accès interdit');
+
+    const shop = await this.shopsRepo.findOne({
+      where: { id: shopId, artist_id: profile.id },
+    });
+    if (!shop) throw new NotFoundException('Boutique introuvable');
+
+    // Collect IDs sent by the client (existing methods to keep/update)
+    const sentIds = dto.methods
+      .filter((m) => m.id)
+      .map((m) => m.id as number);
+
+    // Delete methods that were removed by the user
+    const existing = await this.methodsRepo.find({ where: { shop_id: shopId } });
+    const toDelete = existing.filter((e) => !sentIds.includes(e.id));
+    if (toDelete.length > 0) {
+      await this.methodsRepo.remove(toDelete);
+    }
+
+    // Upsert each method
+    const results: ShopShippingMethod[] = [];
+    for (const m of dto.methods) {
+      if (m.id) {
+        // Update existing
+        const existingMethod = await this.methodsRepo.findOne({
+          where: { id: m.id, shop_id: shopId },
+        });
+        if (existingMethod) {
+          existingMethod.name = m.name;
+          existingMethod.zones = m.zones;
+          existingMethod.delivery_time_min = m.delivery_time_min ?? null;
+          existingMethod.delivery_time_max = m.delivery_time_max ?? null;
+          existingMethod.delivery_time_unit =
+            (m.delivery_time_unit as any) || existingMethod.delivery_time_unit;
+          results.push(await this.methodsRepo.save(existingMethod));
+        }
+      } else {
+        // Create new
+        const newMethod = this.methodsRepo.create({
+          shop_id: shopId,
+          name: m.name,
+          zones: m.zones,
+          delivery_time_min: m.delivery_time_min ?? null,
+          delivery_time_max: m.delivery_time_max ?? null,
+          delivery_time_unit: (m.delivery_time_unit as any) || 'days',
+        });
+        results.push(await this.methodsRepo.save(newMethod));
+      }
+    }
+
+    return this.getShippingMethods(shopId);
+  }
+
+  async getShippingMethodsBulk(
+    shopIds: number[],
+  ): Promise<Record<number, ShopShippingMethod[]>> {
+    if (shopIds.length === 0) return {};
+
+    const methods = await this.methodsRepo
+      .createQueryBuilder('sm')
+      .where('sm.shop_id IN (:...shopIds)', { shopIds })
+      .orderBy('sm.shop_id', 'ASC')
+      .addOrderBy('sm.id', 'ASC')
+      .getMany();
+
+    const result: Record<number, ShopShippingMethod[]> = {};
+    for (const id of shopIds) {
+      result[id] = methods.filter((m) => m.shop_id === id);
+    }
     return result;
   }
 }

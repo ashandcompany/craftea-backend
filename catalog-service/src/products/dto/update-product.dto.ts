@@ -59,7 +59,17 @@ export class UpdateProductDto {
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
-  delivery_time?: number;
+  delivery_time_min?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  delivery_time_max?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['days', 'weeks'])
+  delivery_time_unit?: 'days' | 'weeks';
 
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
