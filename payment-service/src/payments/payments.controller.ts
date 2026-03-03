@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service.js';
-import { CreatePaymentDto } from './dto/create-payment.dto.js';
+import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
 import { RefundPaymentDto } from './dto/refund-payment.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
@@ -20,10 +20,16 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  /** Créer un paiement via Square */
-  @Post()
-  create(@Body() dto: CreatePaymentDto, @Request() req) {
-    return this.paymentsService.create(dto, req.user.id);
+  /** Create a Stripe PaymentIntent — returns client_secret for the frontend */
+  @Post('create-intent')
+  createIntent(@Body() dto: CreatePaymentDto, @Request() req) {
+    return this.paymentsService.createIntent(dto, req.user.id);
+  }
+
+  /** Confirm a payment after the frontend has completed Stripe checkout */
+  @Post('confirm')
+  confirm(@Body() dto: ConfirmPaymentDto, @Request() req) {
+    return this.paymentsService.confirm(dto, req.user.id);
   }
 
   /** Mes paiements */

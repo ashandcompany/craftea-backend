@@ -6,8 +6,7 @@ import { AppModule } from './app.module.js';
 /** Charge les Docker secrets dans process.env si les fichiers existent. */
 function loadSecrets() {
   const secrets: Record<string, string> = {
-    SQUARE_ACCESS_TOKEN: '/run/secrets/square_access_token',
-    SQUARE_LOCATION_ID: '/run/secrets/square_location_id',
+    STRIPE_SECRET_KEY: '/run/secrets/stripe_secret_key',
   };
 
   for (const [envKey, filePath] of Object.entries(secrets)) {

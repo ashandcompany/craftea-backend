@@ -37,13 +37,13 @@ export class Payment {
   idempotency_key: string;
 
   @Column({ nullable: true })
-  square_payment_id?: string;
-
-  @Column({ nullable: true })
-  source_id?: string;
+  stripe_payment_intent_id?: string;
 
   @Column({ nullable: true, type: 'text' })
-  square_receipt_url?: string;
+  stripe_client_secret?: string;
+
+  @Column({ nullable: true, type: 'text' })
+  stripe_receipt_url?: string;
 
   @Column({ nullable: true, type: 'text' })
   error_detail?: string;

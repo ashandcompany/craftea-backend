@@ -220,12 +220,9 @@ services:
       DB_USER: craftea
       DB_PASS: craftea_pass
       JWT_SECRET: craftea_jwt_secret_dev
-      SQUARE_BASE_URL: https://connect.squareupsandbox.com/v2
-      SQUARE_API_VERSION: "2026-01-22"
       ORDER_URL: http://order-service:3005
     secrets:
-      - square_access_token
-      - square_location_id
+      - stripe_secret_key
     depends_on:
       db:
         condition: service_healthy
@@ -286,10 +283,8 @@ services:
       retries: 10
 
 secrets:
-  square_access_token:
-    file: ./docker/secrets/square_access_token.txt
-  square_location_id:
-    file: ./docker/secrets/square_location_id.txt
+  stripe_secret_key:
+    file: ./docker/secrets/stripe_secret_key.txt
 
 volumes:
   postgres_data:

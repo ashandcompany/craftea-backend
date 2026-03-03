@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNumber,
@@ -6,7 +5,6 @@ import {
   IsPositive,
   IsString,
   Length,
-  Min,
 } from 'class-validator';
 
 export class CreatePaymentDto {
@@ -22,7 +20,9 @@ export class CreatePaymentDto {
   @Length(3, 3)
   @IsOptional()
   currency?: string = 'EUR';
+}
 
+export class ConfirmPaymentDto {
   @IsString()
-  source_id: string;
+  payment_intent_id: string;
 }

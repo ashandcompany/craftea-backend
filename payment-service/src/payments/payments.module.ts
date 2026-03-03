@@ -1,18 +1,16 @@
 import { Module } from '@nestjs/common';
-import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Payment } from './entities/payment.entity.js';
 import { PaymentsService } from './payments.service.js';
 import { PaymentsController } from './payments.controller.js';
-import { SquareService } from './square.service.js';
+import { StripeService } from './stripe.service.js';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment]),
-    HttpModule,
   ],
   controllers: [PaymentsController],
-  providers: [PaymentsService, SquareService],
+  providers: [PaymentsService, StripeService],
   exports: [PaymentsService],
 })
 export class PaymentsModule {}
