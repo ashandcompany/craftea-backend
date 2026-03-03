@@ -46,6 +46,10 @@ export class Product {
   @Column({ nullable: true })
   delivery_time: number;
 
+  /** Frais de livraison spécifiques au produit (override boutique). null = utiliser les frais boutique */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  shipping_fee: number | null;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 

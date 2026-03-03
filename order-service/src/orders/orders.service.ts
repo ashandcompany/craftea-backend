@@ -34,18 +34,25 @@ export class OrdersService {
       throw new BadRequestException('La commande doit contenir au moins un article');
     }
 
+    const shippingZone = dto.shipping_zone || 'france';
+
     // Vérifier et décrémenter le stock pour chaque article, récupérer le shop_id
     const decremented: { product_id: number; quantity: number }[] = [];
     const productShopMap = new Map<number, number>();
+    const productShippingFeeMap = new Map<number, number | null>();
     try {
       for (const item of dto.items) {
-        // Récupérer le produit pour obtenir le shop_id
+        // Récupérer le produit pour obtenir le shop_id et le shipping_fee
         const { data: product } = await firstValueFrom(
           this.httpService.get(`${this.catalogUrl}/api/products/${item.product_id}`),
         );
         if (product?.shop_id) {
           productShopMap.set(item.product_id, product.shop_id);
         }
+        productShippingFeeMap.set(
+          item.product_id,
+          product?.shipping_fee != null ? Number(product.shipping_fee) : null,
+        );
 
         await firstValueFrom(
           this.httpService.patch(
@@ -74,15 +81,44 @@ export class OrdersService {
       throw new BadRequestException(msg);
     }
 
-    const total = dto.items.reduce(
+    // ── Calculer les frais de port par boutique ────────────────────────
+    const shopIds = [...new Set(productShopMap.values())];
+    let shopShippingProfiles: Record<number, any[]> = {};
+
+    if (shopIds.length > 0) {
+      try {
+        const { data } = await firstValueFrom(
+          this.httpService.get(
+            `${this.artistUrl}/api/shops/shipping/bulk?ids=${shopIds.join(',')}`,
+          ),
+        );
+        shopShippingProfiles = data || {};
+      } catch {
+        // Si on ne peut pas récupérer les profils, on continue avec 0€ de frais
+      }
+    }
+
+    const shippingTotal = this.computeShipping(
+      dto.items,
+      productShopMap,
+      productShippingFeeMap,
+      shopShippingProfiles,
+      shippingZone,
+    );
+
+    const itemsTotal = dto.items.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
     );
+
+    const total = itemsTotal + shippingTotal;
 
     const order = this.ordersRepo.create({
       user_id: userId,
       status: OrderStatus.PENDING,
       total: parseFloat(total.toFixed(2)),
+      shipping_total: parseFloat(shippingTotal.toFixed(2)),
+      shipping_zone: shippingZone,
       items: dto.items.map((item) =>
         this.itemsRepo.create({
           product_id: item.product_id,
@@ -269,5 +305,82 @@ export class OrdersService {
     const shopIds = await this.getArtistShopIds(userId);
     if (shopIds.length === 0) return false;
     return order.items.some((item) => item.shop_id != null && shopIds.includes(item.shop_id));
+  }
+
+  /**
+   * Calcule les frais de port en tenant compte : shop profiles + product overrides.
+   *
+   * Logique par boutique :
+   * 1. Grouper les articles par shop_id
+   * 2. Pour chaque boutique, chercher le profil d'expédition de la zone
+   * 3. Pour chaque article :
+   *    - S'il a un shipping_fee propre → l'utiliser (× quantité)
+   *    - Sinon → base_fee pour le 1er + additional_item_fee pour les suivants
+   * 4. Si le sous-total de la boutique ≥ free_shipping_threshold → frais = 0
+   */
+  private computeShipping(
+    items: { product_id: number; quantity: number; price: number }[],
+    productShopMap: Map<number, number>,
+    productShippingFeeMap: Map<number, number | null>,
+    shopShippingProfiles: Record<number, any[]>,
+    zone: string,
+  ): number {
+    // Grouper par shop_id
+    const shopGroups = new Map<number, typeof items>();
+    for (const item of items) {
+      const shopId = productShopMap.get(item.product_id) ?? 0;
+      if (!shopGroups.has(shopId)) shopGroups.set(shopId, []);
+      shopGroups.get(shopId)!.push(item);
+    }
+
+    let totalShipping = 0;
+
+    for (const [shopId, shopItems] of shopGroups) {
+      // Sous-total de la boutique (pour le seuil de gratuité)
+      const shopSubtotal = shopItems.reduce(
+        (sum, i) => sum + i.price * i.quantity,
+        0,
+      );
+
+      // Chercher le profil pour la zone
+      const profiles = shopShippingProfiles[shopId] || [];
+      const profile = profiles.find((p: any) => p.zone === zone);
+      const baseFee = profile ? Number(profile.base_fee) : 0;
+      const additionalFee = profile ? Number(profile.additional_item_fee) : 0;
+      const freeThreshold = profile?.free_shipping_threshold != null
+        ? Number(profile.free_shipping_threshold)
+        : null;
+
+      // Si seuil de gratuité atteint → frais = 0 pour cette boutique
+      if (freeThreshold !== null && shopSubtotal >= freeThreshold) {
+        continue;
+      }
+
+      let shopShipping = 0;
+      let isFirstItem = true;
+
+      for (const item of shopItems) {
+        const productOverride = productShippingFeeMap.get(item.product_id);
+
+        if (productOverride !== null && productOverride !== undefined) {
+          // Override produit : frais × quantité
+          shopShipping += productOverride * item.quantity;
+        } else {
+          // Profil boutique : base_fee pour le 1er article, additional pour les suivants
+          for (let q = 0; q < item.quantity; q++) {
+            if (isFirstItem) {
+              shopShipping += baseFee;
+              isFirstItem = false;
+            } else {
+              shopShipping += additionalFee;
+            }
+          }
+        }
+      }
+
+      totalShipping += shopShipping;
+    }
+
+    return totalShipping;
   }
 }

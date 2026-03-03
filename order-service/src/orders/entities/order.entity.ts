@@ -31,6 +31,12 @@ export class Order {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   total: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  shipping_total: number;
+
+  @Column({ length: 10, nullable: true })
+  shipping_zone: string;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 

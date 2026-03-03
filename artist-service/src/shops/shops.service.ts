@@ -7,15 +7,18 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Shop } from './entities/shop.entity.js';
+import { ShopShippingProfile, ShippingZone } from './entities/shop-shipping-profile.entity.js';
 import { ArtistProfile } from '../artists/entities/artist-profile.entity.js';
 import { MinioService } from '../minio/minio.service.js';
 import { CreateShopDto } from './dto/create-shop.dto.js';
 import { UpdateShopDto } from './dto/update-shop.dto.js';
+import { UpdateShippingProfilesDto } from './dto/shipping-profile.dto.js';
 
 @Injectable()
 export class ShopsService {
   constructor(
     @InjectRepository(Shop) private shopsRepo: Repository<Shop>,
+    @InjectRepository(ShopShippingProfile) private shippingRepo: Repository<ShopShippingProfile>,
     @InjectRepository(ArtistProfile) private artistsRepo: Repository<ArtistProfile>,
     private minioService: MinioService,
   ) {}
@@ -115,5 +118,113 @@ export class ShopsService {
 
     await this.shopsRepo.remove(shop);
     return { message: 'Boutique supprimée' };
+  }
+
+  // ─── Shipping profiles ─────────────────────────────────────────────
+
+  async getShippingProfiles(shopId: number): Promise<ShopShippingProfile[]> {
+    const shop = await this.shopsRepo.findOne({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Boutique introuvable');
+
+    const profiles = await this.shippingRepo.find({
+      where: { shop_id: shopId },
+      order: { zone: 'ASC' },
+    });
+
+    // Retourner les profils existants, ou des profils par défaut (0€) pour les zones manquantes
+    const zones = Object.values(ShippingZone);
+    return zones.map(
+      (zone) =>
+        profiles.find((p) => p.zone === zone) ??
+        ({
+          id: 0,
+          shop_id: shopId,
+          zone,
+          base_fee: 0,
+          additional_item_fee: 0,
+          free_shipping_threshold: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        } as ShopShippingProfile),
+    );
+  }
+
+  async updateShippingProfiles(
+    shopId: number,
+    dto: UpdateShippingProfilesDto,
+    userId: number,
+  ): Promise<ShopShippingProfile[]> {
+    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    if (!profile) throw new ForbiddenException('Accès interdit');
+
+    const shop = await this.shopsRepo.findOne({
+      where: { id: shopId, artist_id: profile.id },
+    });
+    if (!shop) throw new NotFoundException('Boutique introuvable');
+
+    const results: ShopShippingProfile[] = [];
+
+    for (const p of dto.profiles) {
+      let existing = await this.shippingRepo.findOne({
+        where: { shop_id: shopId, zone: p.zone },
+      });
+
+      if (existing) {
+        existing.base_fee = p.base_fee;
+        existing.additional_item_fee = p.additional_item_fee;
+        existing.free_shipping_threshold = p.free_shipping_threshold ?? null;
+        results.push(await this.shippingRepo.save(existing));
+      } else {
+        const newProfile = this.shippingRepo.create({
+          shop_id: shopId,
+          zone: p.zone,
+          base_fee: p.base_fee,
+          additional_item_fee: p.additional_item_fee,
+          free_shipping_threshold: p.free_shipping_threshold ?? null,
+        });
+        results.push(await this.shippingRepo.save(newProfile));
+      }
+    }
+
+    return this.getShippingProfiles(shopId);
+  }
+
+  /**
+   * Retourne les profils d'expédition pour plusieurs boutiques à la fois.
+   */
+  async getShippingProfilesBulk(
+    shopIds: number[],
+  ): Promise<Record<number, ShopShippingProfile[]>> {
+    if (shopIds.length === 0) return {};
+
+    const profiles = await this.shippingRepo
+      .createQueryBuilder('sp')
+      .where('sp.shop_id IN (:...shopIds)', { shopIds })
+      .orderBy('sp.shop_id', 'ASC')
+      .addOrderBy('sp.zone', 'ASC')
+      .getMany();
+
+    const result: Record<number, ShopShippingProfile[]> = {};
+    const zones = Object.values(ShippingZone);
+
+    for (const id of shopIds) {
+      const shopProfiles = profiles.filter((p) => p.shop_id === id);
+      result[id] = zones.map(
+        (zone) =>
+          shopProfiles.find((p) => p.zone === zone) ??
+          ({
+            id: 0,
+            shop_id: id,
+            zone,
+            base_fee: 0,
+            additional_item_fee: 0,
+            free_shipping_threshold: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          } as ShopShippingProfile),
+      );
+    }
+
+    return result;
   }
 }

@@ -47,6 +47,11 @@ export class CreateProductDto {
   delivery_time?: number;
 
   @IsOptional()
+  @Transform(({ value }) => (value != null ? parseFloat(value) : undefined))
+  @IsNumber()
+  shipping_fee?: number;
+
+  @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
   @IsArray()
   tags?: number[];
