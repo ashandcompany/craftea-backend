@@ -129,27 +129,10 @@ export class ShopsService {
     const shop = await this.shopsRepo.findOne({ where: { id: shopId } });
     if (!shop) throw new NotFoundException('Boutique introuvable');
 
-    const profiles = await this.shippingRepo.find({
+    return this.shippingRepo.find({
       where: { shop_id: shopId },
       order: { zone: 'ASC' },
     });
-
-    // Retourner les profils existants, ou des profils par défaut (0€) pour les zones manquantes
-    const zones = Object.values(ShippingZone);
-    return zones.map(
-      (zone) =>
-        profiles.find((p) => p.zone === zone) ??
-        ({
-          id: 0,
-          shop_id: shopId,
-          zone,
-          base_fee: 0,
-          additional_item_fee: 0,
-          free_shipping_threshold: null,
-          created_at: new Date(),
-          updated_at: new Date(),
-        } as ShopShippingProfile),
-    );
   }
 
   async updateShippingProfiles(
@@ -166,6 +149,7 @@ export class ShopsService {
     if (!shop) throw new NotFoundException('Boutique introuvable');
 
     const results: ShopShippingProfile[] = [];
+    const submittedZones = dto.profiles.map((p) => p.zone);
 
     for (const p of dto.profiles) {
       let existing = await this.shippingRepo.findOne({
@@ -189,6 +173,16 @@ export class ShopsService {
       }
     }
 
+    // Delete profiles for zones that were not submitted (disabled by the user)
+    const allZones = Object.values(ShippingZone);
+    const disabledZones = allZones.filter((z) => !submittedZones.includes(z));
+    if (disabledZones.length > 0) {
+      await this.shippingRepo.delete({
+        shop_id: shopId,
+        zone: In(disabledZones),
+      });
+    }
+
     return this.getShippingProfiles(shopId);
   }
 
@@ -208,24 +202,9 @@ export class ShopsService {
       .getMany();
 
     const result: Record<number, ShopShippingProfile[]> = {};
-    const zones = Object.values(ShippingZone);
 
     for (const id of shopIds) {
-      const shopProfiles = profiles.filter((p) => p.shop_id === id);
-      result[id] = zones.map(
-        (zone) =>
-          shopProfiles.find((p) => p.zone === zone) ??
-          ({
-            id: 0,
-            shop_id: id,
-            zone,
-            base_fee: 0,
-            additional_item_fee: 0,
-            free_shipping_threshold: null,
-            created_at: new Date(),
-            updated_at: new Date(),
-          } as ShopShippingProfile),
-      );
+      result[id] = profiles.filter((p) => p.shop_id === id);
     }
 
     return result;
