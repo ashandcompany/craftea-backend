@@ -290,7 +290,7 @@ describe('ShopsService', () => {
         {
           id: 1,
           shop_id: 1,
-          zone: ShippingZone.FR,
+          zone: ShippingZone.FRANCE,
           base_fee: 5,
           additional_item_fee: 1,
           free_shipping_threshold: 50,
