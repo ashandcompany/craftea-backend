@@ -71,4 +71,18 @@ export class StripeService {
       { idempotencyKey: params.idempotencyKey },
     );
   }
+
+  async createTransfer(params: {
+    amount: number;
+    currency: string;
+    destination: string;
+    description?: string;
+  }): Promise<Stripe.Transfer> {
+    return this.stripe.transfers.create({
+      amount: params.amount,
+      currency: params.currency.toLowerCase(),
+      destination: params.destination,
+      description: params.description,
+    });
+  }
 }

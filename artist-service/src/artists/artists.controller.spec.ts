@@ -4,6 +4,7 @@ import { ArtistsService } from './artists.service';
 import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
 import { ArtistProfile } from './entities/artist-profile.entity';
+import { ConfigService } from '@nestjs/config';
 
 describe('ArtistsController', () => {
   let controller: ArtistsController;
@@ -47,6 +48,17 @@ describe('ArtistsController', () => {
             adminGetAll: jest.fn(),
             createStripeAccount: jest.fn(),
             syncStripeOnboardingStatus: jest.fn(),
+            creditWallet: jest.fn(),
+            debitWallet: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, fallback: string) => {
+              if (key === 'INTERNAL_SERVICE_TOKEN') return 'test-token';
+              return fallback;
+            }),
           },
         },
       ],

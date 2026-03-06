@@ -11,14 +11,19 @@ import {
 import { PaymentsService } from './payments.service.js';
 import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
 import { RefundPaymentDto } from './dto/refund-payment.dto.js';
+import { RequestPayoutDto } from './dto/request-payout.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { WalletService } from './wallet.service.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly walletService: WalletService,
+  ) {}
 
   /** Create a Stripe PaymentIntent — returns client_secret for the frontend */
   @Post('create-intent')
@@ -66,5 +71,17 @@ export class PaymentsController {
     @Request() req,
   ) {
     return this.paymentsService.refund(id, dto, req.user);
+  }
+
+  /** Demander un retrait wallet vers Stripe Connect */
+  @UseGuards(RolesGuard)
+  @Roles('artist')
+  @Post('wallet/payout')
+  requestPayout(@Body() dto: RequestPayoutDto, @Request() req) {
+    return this.walletService.requestPayout(
+      req.user.id,
+      req.headers.authorization,
+      dto.amount_cents,
+    );
   }
 }

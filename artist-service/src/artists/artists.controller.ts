@@ -11,11 +11,14 @@ import {
   UploadedFiles,
   Request,
   ParseIntPipe,
+  ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ArtistsService } from './artists.service.js';
 import { CreateArtistDto } from './dto/create-artist.dto.js';
 import { UpdateArtistDto } from './dto/update-artist.dto.js';
+import { WalletAdjustDto } from './dto/wallet-adjust.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -27,7 +30,19 @@ const imageUpload = FileFieldsInterceptor([
 
 @Controller('artists')
 export class ArtistsController {
-  constructor(private readonly artistsService: ArtistsService) {}
+  constructor(
+    private readonly artistsService: ArtistsService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private assertInternalToken(req: any) {
+    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    const provided = req.headers['x-service-token'];
+
+    if (!expected || provided !== expected) {
+      throw new ForbiddenException('Invalid service token');
+    }
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist')
@@ -53,6 +68,26 @@ export class ArtistsController {
   @Post('profile/me/stripe/onboarding')
   createStripeAccount(@Request() req) {
     return this.artistsService.createStripeAccount(req.user.id);
+  }
+
+  @Patch('internal/:id/wallet/credit')
+  internalCreditWallet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.creditWallet(id, dto.amount_cents);
+  }
+
+  @Patch('internal/:id/wallet/debit')
+  internalDebitWallet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.debitWallet(id, dto.amount_cents);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

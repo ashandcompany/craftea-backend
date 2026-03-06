@@ -20,6 +20,10 @@ export class CreatePaymentDto {
   @Length(3, 3)
   @IsOptional()
   currency?: string = 'EUR';
+
+  @IsString()
+  @IsOptional()
+  artist_stripe_account_id?: string;
 }
 
 export class ConfirmPaymentDto {

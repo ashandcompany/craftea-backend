@@ -27,6 +27,18 @@ export class Payment {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
 
+  @Column({ type: 'int', default: 0 })
+  amount_cents: number;
+
+  @Column({ type: 'int', default: 0 })
+  platform_fee_cents: number;
+
+  @Column({ type: 'int', default: 0 })
+  artist_amount_cents: number;
+
+  @Column({ nullable: true })
+  artist_stripe_account_id?: string;
+
   @Column({ length: 3, default: 'EUR' })
   currency: string;
 
@@ -47,6 +59,12 @@ export class Payment {
 
   @Column({ nullable: true, type: 'text' })
   error_detail?: string;
+
+  @Column({ default: false })
+  wallet_credited: boolean;
+
+  @Column({ nullable: true, type: 'timestamptz' })
+  wallet_credited_at?: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

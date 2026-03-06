@@ -1,0 +1,128 @@
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { firstValueFrom } from 'rxjs';
+import {
+  WalletTransaction,
+  WalletTransactionStatus,
+  WalletTransactionType,
+} from './entities/wallet-transaction.entity.js';
+import { StripeService } from './stripe.service.js';
+
+interface ArtistProfileSnapshot {
+  id: number;
+  stripe_account_id?: string | null;
+  stripe_onboarded?: boolean;
+  wallet_balance?: number;
+}
+
+@Injectable()
+export class WalletService {
+  private artistUrl: string;
+  private internalServiceToken: string;
+
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+    private readonly stripeService: StripeService,
+    @InjectRepository(WalletTransaction)
+    private readonly walletTxRepo: Repository<WalletTransaction>,
+  ) {
+    this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
+    this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+  }
+
+  async credit(artistId: number, amountCents: number, orderId: number) {
+    const existing = await this.walletTxRepo.findOne({
+      where: {
+        artist_id: artistId,
+        order_id: orderId,
+        type: WalletTransactionType.CREDIT,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/${artistId}/wallet/credit`,
+        { amount_cents: amountCents, description: `Commande #${orderId} validée` },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+
+    return this.walletTxRepo.save(
+      this.walletTxRepo.create({
+        artist_id: artistId,
+        order_id: orderId,
+        amount_cents: amountCents,
+        type: WalletTransactionType.CREDIT,
+        status: WalletTransactionStatus.AVAILABLE,
+        description: `Commande #${orderId} validée`,
+      }),
+    );
+  }
+
+  async requestPayout(userId: number, authHeader: string | undefined, amountCents: number) {
+    if (!authHeader) {
+      throw new ForbiddenException('Jeton manquant');
+    }
+
+    const { data: artist } = await firstValueFrom(
+      this.httpService.get<ArtistProfileSnapshot>(`${this.artistUrl}/api/artists/profile/me`, {
+        headers: { Authorization: authHeader },
+      }),
+    );
+
+    if (!artist?.id) {
+      throw new BadRequestException('Profil artiste introuvable');
+    }
+    if (!artist.stripe_onboarded || !artist.stripe_account_id) {
+      throw new BadRequestException('Compte Stripe non configuré');
+    }
+
+    const walletBalance = Number(artist.wallet_balance ?? 0);
+    if (walletBalance < amountCents) {
+      throw new BadRequestException('Solde insuffisant');
+    }
+    if (amountCents < 1000) {
+      throw new BadRequestException('Minimum de retrait : 10€');
+    }
+
+    const transfer = await this.stripeService.createTransfer({
+      amount: amountCents,
+      currency: 'eur',
+      destination: artist.stripe_account_id,
+      description: `Retrait artiste ${artist.id}`,
+    });
+
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/${artist.id}/wallet/debit`,
+        { amount_cents: amountCents, description: 'Retrait vers compte bancaire' },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+
+    const tx = await this.walletTxRepo.save(
+      this.walletTxRepo.create({
+        artist_id: artist.id,
+        amount_cents: amountCents,
+        type: WalletTransactionType.DEBIT,
+        status: WalletTransactionStatus.PAID,
+        description: 'Retrait vers compte bancaire',
+        stripe_transfer_id: transfer.id,
+      }),
+    );
+
+    return { success: true, transferId: transfer.id, transactionId: tx.id, userId };
+  }
+}

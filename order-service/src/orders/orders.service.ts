@@ -18,6 +18,8 @@ import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 export class OrdersService {
   private catalogUrl: string;
   private artistUrl: string;
+  private paymentUrl: string;
+  private internalServiceToken: string;
 
   constructor(
     @InjectRepository(Order) private ordersRepo: Repository<Order>,
@@ -27,6 +29,8 @@ export class OrdersService {
   ) {
     this.catalogUrl = this.configService.get<string>('CATALOG_URL', 'http://catalog-service:3003');
     this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
+    this.paymentUrl = this.configService.get<string>('PAYMENT_URL', 'http://payment-service:3007');
+    this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
   }
 
   async create(dto: CreateOrderDto, userId: number): Promise<Order> {
@@ -197,16 +201,87 @@ export class OrdersService {
       await this.handleOrderCancellation(order);
     }
 
+    const wasDelivered = order.status === OrderStatus.DELIVERED;
     order.status = dto.status;
-    return this.ordersRepo.save(order);
+    const saved = await this.ordersRepo.save(order);
+
+    if (!wasDelivered && dto.status === OrderStatus.DELIVERED) {
+      await this.emitOrderCompleted(saved);
+    }
+
+    return saved;
+  }
+
+  private async emitOrderCompleted(order: Order): Promise<void> {
+    const splits = await this.buildArtistGrossSplits(order);
+    if (splits.length === 0) return;
+
+    const amountCents = Math.round(Number(order.total ?? 0) * 100);
+    if (amountCents <= 0) return;
+
+    const fallbackArtistId = splits[0]?.artistId;
+
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.paymentUrl}/api/payments/events/order-completed`,
+          {
+            orderId: order.id,
+            artistId: fallbackArtistId,
+            amount: amountCents,
+            splits,
+          },
+          {
+            headers: {
+              'x-service-token': this.internalServiceToken,
+            },
+          },
+        ),
+      );
+    } catch (error) {
+      console.error(`Failed to emit order.completed for order ${order.id}:`, error);
+    }
+  }
+
+  private async buildArtistGrossSplits(
+    order: Order,
+  ): Promise<Array<{ artistId: number; grossAmount: number }>> {
+    const shopIds = [...new Set((order.items || [])
+      .map((item) => item.shop_id)
+      .filter((id): id is number => id != null))];
+
+    if (shopIds.length === 0) return [];
+
+    const shopArtistMap = new Map<number, number>();
+    for (const shopId of shopIds) {
+      try {
+        const { data: shop } = await firstValueFrom(
+          this.httpService.get(`${this.artistUrl}/api/shops/${shopId}`),
+        );
+        if (shop?.artist_id) {
+          shopArtistMap.set(shopId, Number(shop.artist_id));
+        }
+      } catch {
+        // ignore failed shop lookup
+      }
+    }
+
+    const artistGrossMap = new Map<number, number>();
+    for (const item of order.items || []) {
+      if (!item.shop_id) continue;
+      const artistId = shopArtistMap.get(item.shop_id);
+      if (!artistId) continue;
+
+      const lineAmountCents = Math.round(Number(item.price) * 100) * item.quantity;
+      artistGrossMap.set(artistId, (artistGrossMap.get(artistId) ?? 0) + lineAmountCents);
+    }
+
+    return [...artistGrossMap.entries()]
+      .map(([artistId, grossAmount]) => ({ artistId, grossAmount }))
+      .filter((s) => s.grossAmount > 0);
   }
 
   private async handleOrderCancellation(order: Order): Promise<void> {
-    const paymentUrl = this.configService.get<string>(
-      'PAYMENT_URL',
-      'http://payment-service:3007',
-    );
-
     // 1. Restaurer le stock pour chaque article
     for (const item of order.items || []) {
       try {
@@ -228,7 +303,7 @@ export class OrdersService {
     // 2. Refund le paiement associé à cette commande
     try {
       const payments = await firstValueFrom(
-        this.httpService.get(`${paymentUrl}/api/payments/order/${order.id}`),
+        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`),
       );
 
       const completedPayment = payments.data?.find(
@@ -238,7 +313,7 @@ export class OrdersService {
       if (completedPayment) {
         await firstValueFrom(
           this.httpService.post(
-            `${paymentUrl}/api/payments/${completedPayment.id}/refund`,
+            `${this.paymentUrl}/api/payments/${completedPayment.id}/refund`,
             { reason: 'Commande annulée' },
           ),
         );

@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { StripeService } from './stripe.service';
+import { WalletService } from './wallet.service';
 
 // Mock uuid to return a predictable value
 jest.mock('uuid', () => ({ v4: () => 'mock-uuid-1234' }));
@@ -17,14 +18,21 @@ describe('PaymentsService', () => {
   let service: PaymentsService;
   let paymentsRepo: jest.Mocked<Repository<Payment>>;
   let stripeService: jest.Mocked<StripeService>;
+  let walletService: jest.Mocked<WalletService>;
 
   const mockPayment: Payment = {
     id: 1,
     user_id: 100,
     order_id: 10,
     amount: 50,
+    amount_cents: 5000,
+    platform_fee_cents: 500,
+    artist_amount_cents: 4500,
+    artist_stripe_account_id: 'acct_test_artist',
     currency: 'EUR',
     status: PaymentStatus.PENDING,
+    wallet_credited: false,
+    wallet_credited_at: undefined,
     idempotency_key: 'mock-uuid-1234',
     stripe_payment_intent_id: 'pi_test_123',
     stripe_client_secret: 'pi_test_123_secret',
@@ -53,6 +61,14 @@ describe('PaymentsService', () => {
             createPaymentIntent: jest.fn(),
             retrievePaymentIntent: jest.fn(),
             refund: jest.fn(),
+            createTransfer: jest.fn(),
+          },
+        },
+        {
+          provide: WalletService,
+          useValue: {
+            credit: jest.fn(),
+            requestPayout: jest.fn(),
           },
         },
       ],
@@ -61,10 +77,16 @@ describe('PaymentsService', () => {
     service = module.get<PaymentsService>(PaymentsService);
     paymentsRepo = module.get(getRepositoryToken(Payment)) as jest.Mocked<Repository<Payment>>;
     stripeService = module.get(StripeService) as jest.Mocked<StripeService>;
+    walletService = module.get(WalletService) as jest.Mocked<WalletService>;
   });
 
   describe('createIntent', () => {
-    const dto = { amount: 50, order_id: 10, currency: 'EUR' };
+    const dto = {
+      amount: 50,
+      order_id: 10,
+      currency: 'EUR',
+      artist_stripe_account_id: 'acct_test_artist',
+    };
 
     it('should create a Stripe PaymentIntent and persist payment', async () => {
       stripeService.createPaymentIntent.mockResolvedValue({
@@ -80,13 +102,22 @@ describe('PaymentsService', () => {
         amount: 5000,
         currency: 'EUR',
         idempotencyKey: 'mock-uuid-1234',
-        metadata: { user_id: '100', order_id: '10' },
+        metadata: {
+          user_id: '100',
+          order_id: '10',
+          artistStripeAccountId: 'acct_test_artist',
+          platformFee: '500',
+        },
       });
       expect(paymentsRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           user_id: 100,
           order_id: 10,
           amount: 50,
+          amount_cents: 5000,
+          platform_fee_cents: 500,
+          artist_amount_cents: 4500,
+          artist_stripe_account_id: 'acct_test_artist',
           currency: 'EUR',
           status: PaymentStatus.PENDING,
           stripe_payment_intent_id: 'pi_test_123',
@@ -107,9 +138,57 @@ describe('PaymentsService', () => {
 
       await service.createIntent({ amount: 25 }, 100);
 
-      expect(stripeService.createPaymentIntent).toHaveBeenCalledWith(
-        expect.objectContaining({ currency: 'EUR' }),
-      );
+      expect(stripeService.createPaymentIntent).toHaveBeenCalledWith(expect.objectContaining({
+        currency: 'EUR',
+        metadata: expect.objectContaining({
+          artistStripeAccountId: '',
+          platformFee: '250',
+        }),
+      }));
+    });
+  });
+
+  describe('handleOrderCompleted', () => {
+    it('should split and credit multiple artists then mark payment as wallet_credited', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        order_id: 10,
+        status: PaymentStatus.COMPLETED,
+        wallet_credited: false,
+      });
+      walletService.credit.mockResolvedValue({} as any);
+      paymentsRepo.save.mockImplementation(async (p: any) => p);
+
+      const result = await service.handleOrderCompleted({
+        orderId: 10,
+        artistId: 5,
+        amount: 5000,
+        splits: [
+          { artistId: 5, grossAmount: 3000 },
+          { artistId: 7, grossAmount: 2000 },
+        ],
+      });
+
+      expect(walletService.credit).toHaveBeenNthCalledWith(1, 5, 2700, 10);
+      expect(walletService.credit).toHaveBeenNthCalledWith(2, 7, 1800, 10);
+      expect((result as Payment).wallet_credited).toBe(true);
+    });
+
+    it('should skip when payment is not completed', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        order_id: 10,
+        status: PaymentStatus.PENDING,
+      });
+
+      const result = await service.handleOrderCompleted({
+        orderId: 10,
+        artistId: 5,
+        amount: 5000,
+      });
+
+      expect(result).toEqual({ skipped: true });
+      expect(walletService.credit).not.toHaveBeenCalled();
     });
   });
 

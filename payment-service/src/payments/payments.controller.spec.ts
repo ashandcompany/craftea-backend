@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PaymentStatus } from './entities/payment.entity';
+import { WalletService } from './wallet.service';
 
 describe('PaymentsController', () => {
   let controller: PaymentsController;
@@ -17,6 +18,11 @@ describe('PaymentsController', () => {
     amount: 50,
     currency: 'EUR',
     status: PaymentStatus.PENDING,
+    amount_cents: 5000,
+    platform_fee_cents: 500,
+    artist_amount_cents: 4500,
+    artist_stripe_account_id: 'acct_test_artist',
+    wallet_credited: false,
     idempotency_key: 'uuid-123',
     stripe_payment_intent_id: 'pi_test_123',
     stripe_client_secret: 'pi_test_123_secret',
@@ -38,6 +44,12 @@ describe('PaymentsController', () => {
             findAll: jest.fn(),
             findOne: jest.fn(),
             refund: jest.fn(),
+          },
+        },
+        {
+          provide: WalletService,
+          useValue: {
+            requestPayout: jest.fn(),
           },
         },
       ],
@@ -126,6 +138,21 @@ describe('PaymentsController', () => {
 
       expect(service.refund).toHaveBeenCalledWith(1, dto, mockUserReq.user);
       expect(result.status).toBe(PaymentStatus.REFUNDED);
+    });
+  });
+
+  describe('requestPayout', () => {
+    it('should request an artist payout', async () => {
+      const walletService = (controller as any).walletService as jest.Mocked<WalletService>;
+      walletService.requestPayout.mockResolvedValue({ success: true, transferId: 'tr_123' } as any);
+
+      const result = await controller.requestPayout(
+        { amount_cents: 1500 },
+        { user: { id: 100, role: 'artist' }, headers: { authorization: 'Bearer token' } },
+      );
+
+      expect(walletService.requestPayout).toHaveBeenCalledWith(100, 'Bearer token', 1500);
+      expect(result).toEqual({ success: true, transferId: 'tr_123' });
     });
   });
 });

@@ -284,6 +284,40 @@ export class ArtistsService {
     return { id: profile.id, validated: profile.validated };
   }
 
+  async creditWallet(artistId: number, amountCents: number) {
+    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+
+    const current = Number(profile.wallet_balance ?? 0);
+    profile.wallet_balance = current + amountCents;
+    await this.artistsRepo.save(profile);
+
+    return {
+      artistId: profile.id,
+      walletBalance: Number(profile.wallet_balance ?? 0),
+      amountCredited: amountCents,
+    };
+  }
+
+  async debitWallet(artistId: number, amountCents: number) {
+    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+
+    const current = Number(profile.wallet_balance ?? 0);
+    if (current < amountCents) {
+      throw new ConflictException('Solde insuffisant');
+    }
+
+    profile.wallet_balance = current - amountCents;
+    await this.artistsRepo.save(profile);
+
+    return {
+      artistId: profile.id,
+      walletBalance: Number(profile.wallet_balance ?? 0),
+      amountDebited: amountCents,
+    };
+  }
+
   async adminGetAll() {
     return this.artistsRepo.find({ relations: ['shops'] });
   }
