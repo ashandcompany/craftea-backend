@@ -4,6 +4,7 @@ import { ShopsService } from './shops.service';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
 import { ShippingZone } from './entities/shop-shipping-profile.entity';
+import { DeliveryTimeUnit } from './entities/shop-shipping-method.entity';
 
 describe('ShopsController', () => {
   let controller: ShopsController;
@@ -23,27 +24,39 @@ describe('ShopsController', () => {
       id: 1,
       user_id: 100,
       bio: 'Artist bio',
+      banner_url: '',
+      logo_url: '',
+      social_links: '',
       validated: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+      shops: [],
     },
   };
 
   const mockShippingProfile = {
     id: 1,
     shop_id: 1,
-    zone: ShippingZone.FR,
+    zone: ShippingZone.FRANCE,
     base_fee: 5,
     additional_item_fee: 1,
     free_shipping_threshold: 50,
+    created_at: new Date(),
+    updated_at: new Date(),
+    shop: mockShop as any,
   };
 
   const mockShippingMethod = {
     id: 1,
     shop_id: 1,
     name: 'Standard Shipping',
-    zones: [ShippingZone.FR, ShippingZone.EU],
+    zones: [ShippingZone.FRANCE, ShippingZone.EUROPE],
     delivery_time_min: 3,
     delivery_time_max: 5,
-    delivery_time_unit: 'days',
+    delivery_time_unit: DeliveryTimeUnit.DAYS,
+    created_at: new Date(),
+    updated_at: new Date(),
+    shop: mockShop as any,
   };
 
   beforeEach(async () => {
@@ -205,7 +218,7 @@ describe('ShopsController', () => {
       const dto = {
         profiles: [
           {
-            zone: ShippingZone.FR,
+            zone: ShippingZone.FRANCE,
             base_fee: 5,
             additional_item_fee: 1,
             free_shipping_threshold: 50,
@@ -240,10 +253,10 @@ describe('ShopsController', () => {
         methods: [
           {
             name: 'Standard Shipping',
-            zones: [ShippingZone.FR],
+            zones: [ShippingZone.FRANCE],
             delivery_time_min: 3,
             delivery_time_max: 5,
-            delivery_time_unit: 'days',
+            delivery_time_unit: DeliveryTimeUnit.DAYS,
           },
         ],
       };
