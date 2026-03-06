@@ -17,6 +17,10 @@ describe('ArtistsController', () => {
     logo_url: 'logo-123.jpg',
     social_links: 'https://twitter.com/test',
     validated: true,
+    stripe_account_id: null,
+    stripe_onboarded: false,
+    wallet_balance: 0,
+    pending_balance: 0,
     created_at: new Date('2026-01-01'),
     updated_at: new Date('2026-01-01'),
     shops: [],
@@ -41,6 +45,8 @@ describe('ArtistsController', () => {
             findById: jest.fn(),
             toggleValidation: jest.fn(),
             adminGetAll: jest.fn(),
+            createStripeAccount: jest.fn(),
+            syncStripeOnboardingStatus: jest.fn(),
           },
         },
       ],
@@ -162,6 +168,41 @@ describe('ArtistsController', () => {
         banner: [mockFile],
       });
       expect(result.banner_url).toBe('new-banner-123.jpg');
+    });
+  });
+
+  describe('createStripeAccount', () => {
+    it('should create or return Stripe onboarding link for current artist', async () => {
+      const stripeResponse = {
+        url: 'https://connect.stripe.test/onboard',
+        stripeAccountId: 'acct_123',
+      };
+      service.createStripeAccount.mockResolvedValue(stripeResponse);
+
+      const mockRequest = { user: { id: 100 } };
+      const result = await controller.createStripeAccount(mockRequest);
+
+      expect(service.createStripeAccount).toHaveBeenCalledWith(100);
+      expect(result).toEqual(stripeResponse);
+    });
+  });
+
+  describe('stripeStatus', () => {
+    it('should return Stripe onboarding status for current artist', async () => {
+      const statusResponse = {
+        stripeAccountId: 'acct_123',
+        stripeOnboarded: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+        payoutsEnabled: true,
+      };
+      service.syncStripeOnboardingStatus.mockResolvedValue(statusResponse);
+
+      const mockRequest = { user: { id: 100 } };
+      const result = await controller.stripeStatus(mockRequest);
+
+      expect(service.syncStripeOnboardingStatus).toHaveBeenCalledWith(100);
+      expect(result).toEqual(statusResponse);
     });
   });
 

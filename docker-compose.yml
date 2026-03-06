@@ -95,8 +95,11 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
+    secrets:
+      - stripe_secret_key
     environment:
       PORT: 3002
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: craftea_artists
@@ -243,6 +246,7 @@ services:
       - "3007:3007"
     environment:
       PORT: 3007
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: craftea_payments

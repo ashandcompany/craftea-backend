@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { existsSync, readFileSync } from 'node:fs';
 
 @Injectable()
 export class StripeService {
@@ -8,7 +9,17 @@ export class StripeService {
   private readonly stripe: Stripe;
 
   constructor(private readonly configService: ConfigService) {
-    const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY', '');
+    let secretKey = this.configService.get<string>('STRIPE_SECRET_KEY', '').trim();
+    if (!secretKey) {
+      const secretKeyFile = this.configService.get<string>(
+        'STRIPE_SECRET_KEY_FILE',
+        '/run/secrets/stripe_secret_key',
+      );
+      if (secretKeyFile && existsSync(secretKeyFile)) {
+        secretKey = readFileSync(secretKeyFile, 'utf8').trim();
+      }
+    }
+
     this.stripe = new Stripe(secretKey || 'sk_test_placeholder');
   }
 

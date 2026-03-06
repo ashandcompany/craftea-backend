@@ -50,6 +50,20 @@ export class ArtistsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist')
+  @Post('profile/me/stripe/onboarding')
+  createStripeAccount(@Request() req) {
+    return this.artistsService.createStripeAccount(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Get('profile/me/stripe/status')
+  stripeStatus(@Request() req) {
+    return this.artistsService.syncStripeOnboardingStatus(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
   @Post()
   @UseInterceptors(imageUpload)
   create(
