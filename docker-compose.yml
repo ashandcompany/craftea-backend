@@ -1,4 +1,32 @@
 services:
+  # ───────────── API Gateway (Node.js) ─────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: craftea-api-gateway
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:3000
+      USER_SERVICE_URL: http://user-service:3010
+      ARTIST_SERVICE_URL: http://artist-service:3002
+      CATALOG_SERVICE_URL: http://catalog-service:3003
+      INTERACTION_SERVICE_URL: http://interaction-service:3004
+      ORDER_SERVICE_URL: http://order-service:3005
+      CART_SERVICE_URL: http://cart-service:3006
+      PAYMENT_SERVICE_URL: http://payment-service:3007
+    depends_on:
+      - user-service
+      - artist-service
+      - catalog-service
+      - interaction-service
+      - order-service
+      - cart-service
+      - payment-service
+
   # ───────────── PostgreSQL ─────────────
 
   db:
@@ -40,9 +68,9 @@ services:
     container_name: craftea-user-service
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3010:3010"
     environment:
-      PORT: 3001
+      PORT: 3010
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: craftea_users
