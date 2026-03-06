@@ -7,6 +7,7 @@ import {
   UseGuards,
   Request,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service.js';
 import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
@@ -83,5 +84,32 @@ export class PaymentsController {
       req.headers.authorization,
       dto.amount_cents,
     );
+  }
+
+  /** Wallet artiste: snapshot balance + état Stripe */
+  @UseGuards(RolesGuard)
+  @Roles('artist')
+  @Get('wallet/me')
+  getMyWallet(@Request() req) {
+    return this.walletService.getMyWallet(req.headers.authorization);
+  }
+
+  /** Wallet artiste: historique des transactions */
+  @UseGuards(RolesGuard)
+  @Roles('artist')
+  @Get('wallet/my-transactions')
+  getMyWalletTransactions(@Request() req) {
+    return this.walletService.listMyTransactions(req.headers.authorization);
+  }
+
+  /** Wallet admin: historique global ou filtré par artiste */
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @Get('wallet/admin/transactions')
+  getAdminWalletTransactions(@Query('artist_id') artistId?: string) {
+    if (artistId) {
+      return this.walletService.listTransactionsByArtist(Number(artistId));
+    }
+    return this.walletService.listAllTransactions();
   }
 }

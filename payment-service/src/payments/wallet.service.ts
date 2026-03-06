@@ -20,6 +20,7 @@ interface ArtistProfileSnapshot {
   stripe_account_id?: string | null;
   stripe_onboarded?: boolean;
   wallet_balance?: number;
+  pending_balance?: number;
 }
 
 @Injectable()
@@ -36,6 +37,24 @@ export class WalletService {
   ) {
     this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
     this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+  }
+
+  private async getArtistProfileByAuth(authHeader: string | undefined) {
+    if (!authHeader) {
+      throw new ForbiddenException('Jeton manquant');
+    }
+
+    const { data } = await firstValueFrom(
+      this.httpService.get<ArtistProfileSnapshot>(`${this.artistUrl}/api/artists/profile/me`, {
+        headers: { Authorization: authHeader },
+      }),
+    );
+
+    if (!data?.id) {
+      throw new BadRequestException('Profil artiste introuvable');
+    }
+
+    return data;
   }
 
   async credit(artistId: number, amountCents: number, orderId: number) {
@@ -71,20 +90,47 @@ export class WalletService {
     );
   }
 
+  async getMyWallet(authHeader: string | undefined) {
+    const artist = await this.getArtistProfileByAuth(authHeader);
+    return {
+      artistId: artist.id,
+      stripeAccountId: artist.stripe_account_id ?? null,
+      stripeOnboarded: Boolean(artist.stripe_onboarded),
+      walletBalance: Number(artist.wallet_balance ?? 0),
+      pendingBalance: Number(artist.pending_balance ?? 0),
+    };
+  }
+
+  async listMyTransactions(authHeader: string | undefined) {
+    const artist = await this.getArtistProfileByAuth(authHeader);
+    return this.walletTxRepo.find({
+      where: { artist_id: artist.id },
+      order: { created_at: 'DESC' },
+      take: 100,
+    });
+  }
+
+  async listTransactionsByArtist(artistId: number) {
+    if (!Number.isFinite(artistId) || artistId <= 0) {
+      throw new BadRequestException('artist_id invalide');
+    }
+
+    return this.walletTxRepo.find({
+      where: { artist_id: artistId },
+      order: { created_at: 'DESC' },
+      take: 200,
+    });
+  }
+
+  async listAllTransactions() {
+    return this.walletTxRepo.find({
+      order: { created_at: 'DESC' },
+      take: 500,
+    });
+  }
+
   async requestPayout(userId: number, authHeader: string | undefined, amountCents: number) {
-    if (!authHeader) {
-      throw new ForbiddenException('Jeton manquant');
-    }
-
-    const { data: artist } = await firstValueFrom(
-      this.httpService.get<ArtistProfileSnapshot>(`${this.artistUrl}/api/artists/profile/me`, {
-        headers: { Authorization: authHeader },
-      }),
-    );
-
-    if (!artist?.id) {
-      throw new BadRequestException('Profil artiste introuvable');
-    }
+    const artist = await this.getArtistProfileByAuth(authHeader);
     if (!artist.stripe_onboarded || !artist.stripe_account_id) {
       throw new BadRequestException('Compte Stripe non configuré');
     }
