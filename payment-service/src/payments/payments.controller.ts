@@ -77,7 +77,7 @@ export class PaymentsController {
     }
 
     // ── Dispatch ────────────────────────────────────────────────────────
-    switch (event.type) {
+    switch (event.type as string) {
       case 'payment_intent.succeeded': {
         await this.paymentsService.confirmPaymentFromWebhook(
           event.data.object as Stripe.PaymentIntent,
@@ -92,12 +92,12 @@ export class PaymentsController {
       }
 
       case 'transfer.failed': {
-        await this.walletService.handleTransferFailed(event.data.object as { id: string });
+        await this.walletService.handleTransferFailed((event.data as any).object as { id: string });
         break;
       }
 
       case 'payout.failed': {
-        await this.walletService.handlePayoutFailed(event.data.object as { id: string });
+        await this.walletService.handlePayoutFailed((event.data as any).object as { id: string });
         break;
       }
 
