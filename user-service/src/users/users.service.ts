@@ -1,15 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity.js';
 import { Log } from '../logs/entities/log.entity.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { MinioService } from '../minio/minio.service.js';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(Log) private logsRepo: Repository<Log>,
+    private minioService: MinioService,
   ) {}
 
   async findAll() {
@@ -82,5 +84,21 @@ export class UsersService {
     );
 
     return { id: user.id, role: user.role };
+  }
+
+  async updateAvatar(
+    id: number,
+    file: Express.Multer.File,
+    currentUser: { id: number; role: string },
+  ) {
+    if (currentUser.role !== 'admin' && currentUser.id !== id) {
+      throw new ForbiddenException('Accès interdit');
+    }
+    if (!file) throw new BadRequestException('Fichier manquant');
+
+    const user = await this.findById(id);
+    if (user.avatar_url) await this.minioService.deleteFile(user.avatar_url);
+    user.avatar_url = await this.minioService.uploadFile(file);
+    return this.usersRepo.save(user);
   }
 }

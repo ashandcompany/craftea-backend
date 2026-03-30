@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AddressesModule } from './addresses/addresses.module.js';
 import { LogsModule } from './logs/logs.module.js';
+import { MinioModule } from './minio/minio.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LogsModule } from './logs/logs.module.js';
     UsersModule,
     AddressesModule,
     LogsModule,
+    MinioModule,
   ],
 })
 export class AppModule {}

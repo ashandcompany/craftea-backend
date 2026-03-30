@@ -6,9 +6,12 @@ import {
   Param,
   Body,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   Request,
   ParseIntPipe,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { ChangeRoleDto } from './dto/change-role.dto.js';
@@ -46,6 +49,17 @@ export class UsersController {
     @Request() req,
   ) {
     return this.usersService.update(id, dto, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/avatar')
+  @UseInterceptors(FileInterceptor('avatar'))
+  updateAvatar(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req,
+  ) {
+    return this.usersService.updateAvatar(id, file, req.user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

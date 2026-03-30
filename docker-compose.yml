@@ -80,8 +80,17 @@ services:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_SECRET: craftea_jwt_refresh_secret_dev
       JWT_REFRESH_EXPIRES_IN: 7d
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: craftea_minio_secret
+      MINIO_BUCKET: user-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localhost:9000
     depends_on:
       db:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   # ───────────── Artist Service (NestJS) ─────────────

@@ -17,6 +17,7 @@ import { RefundPaymentDto } from './dto/refund-payment.dto.js';
 import { StripeService } from './stripe.service.js';
 import { WalletService } from './wallet.service.js';
 import { OrderCompletedEventDto } from './dto/order-completed-event.dto.js';
+import { calculateFee } from './commission.constants.js';
 import Stripe from 'stripe';
 
 @Injectable()
@@ -104,9 +105,7 @@ export class PaymentsService {
     const idempotencyKey = uuidv4();
     const amountInCents = Math.round(dto.amount * 100);
     const currency = dto.currency ?? 'EUR';
-    const platformFeePercent = 0.075;
-    const platformFeeFixed = 15; // 0.15 € in cents
-    const platformFeeCents = Math.round(amountInCents * platformFeePercent) + platformFeeFixed;
+    const platformFeeCents = calculateFee(amountInCents);
     const artistAmountCents = amountInCents - platformFeeCents;
 
     // Resolve artist's Stripe connected account from the order

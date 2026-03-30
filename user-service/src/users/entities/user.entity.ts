@@ -38,6 +38,9 @@ export class User {
   @Column({ default: true })
   is_active: boolean;
 
+  @Column({ nullable: true })
+  avatar_url?: string;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
