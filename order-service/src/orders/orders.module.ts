@@ -5,13 +5,14 @@ import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { OrdersService } from './orders.service.js';
 import { OrdersController } from './orders.controller.js';
+import { OrdersInternalController } from './orders-internal.controller.js';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem]),
     HttpModule,
   ],
-  controllers: [OrdersController],
+  controllers: [OrdersController, OrdersInternalController],
   providers: [OrdersService],
 })
 export class OrdersModule {}

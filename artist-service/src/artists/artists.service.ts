@@ -200,6 +200,8 @@ export class ArtistsService {
     try {
       if (!profile.stripe_account_id) {
         // Explicit platform-controlled responsibilities for connected accounts.
+        // Manual payout schedule: funds stay in the artist's Stripe balance
+        // until they explicitly request a payout (Vinted-style wallet).
         const account = await this.stripe.accounts.create({
           type: 'express',
           controller: {
@@ -211,6 +213,11 @@ export class ArtistsService {
           capabilities: {
             card_payments: { requested: true },
             transfers: { requested: true },
+          },
+          settings: {
+            payouts: {
+              schedule: { interval: 'manual' },
+            },
           },
         });
 

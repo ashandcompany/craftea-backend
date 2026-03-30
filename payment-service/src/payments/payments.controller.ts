@@ -70,6 +70,18 @@ export class PaymentsController {
         await this.walletService.handleTransferFailed(event.data.object);
         break;
       }
+      case 'payout.failed': {
+        await this.walletService.handlePayoutFailed(event.data.object);
+        break;
+      }
+      case 'account.updated': {
+        // Stripe notifies when a connected account finishes onboarding
+        const account = event.data.object;
+        if (account.details_submitted) {
+          this.logger.log(`Stripe account ${account.id} onboarding completed`);
+        }
+        break;
+      }
       default:
         this.logger.debug(`Stripe webhook ignoré: ${event.type}`);
     }

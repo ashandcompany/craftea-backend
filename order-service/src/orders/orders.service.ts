@@ -154,6 +154,11 @@ export class OrdersService {
     return order;
   }
 
+  /** Internal service-to-service call — no user ownership check */
+  async findOneInternal(id: number): Promise<Order | null> {
+    return this.ordersRepo.findOne({ where: { id } });
+  }
+
   async updateStatus(
     id: number,
     dto: UpdateOrderStatusDto,

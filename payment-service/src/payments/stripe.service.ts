@@ -44,24 +44,41 @@ export class StripeService {
   /**
    * Create a PaymentIntent — the client will use the returned client_secret
    * to confirm payment via Stripe.js on the frontend.
+   *
+   * When `transferDestination` is provided, uses Destination Charges:
+   * Stripe splits funds automatically — the platform keeps the
+   * `applicationFeeAmount` and the rest goes to the connected account.
    */
   async createPaymentIntent(params: {
     amount: number; // in cents
     currency: string;
     idempotencyKey: string;
     metadata?: Record<string, string>;
+    applicationFeeAmount?: number; // platform commission in cents
+    transferDestination?: string;  // connected account ID (acct_...)
   }): Promise<Stripe.PaymentIntent> {
     this.logger.log(
-      `Creating Stripe PaymentIntent: ${params.amount} ${params.currency} (key: ${params.idempotencyKey})`,
+      `Creating Stripe PaymentIntent: ${params.amount} ${params.currency} (key: ${params.idempotencyKey})` +
+      (params.transferDestination ? ` → dest: ${params.transferDestination}` : ''),
     );
 
+    const createParams: Stripe.PaymentIntentCreateParams = {
+      amount: params.amount,
+      currency: params.currency.toLowerCase(),
+      automatic_payment_methods: { enabled: true },
+      metadata: params.metadata ?? {},
+    };
+
+    // Destination Charge: split funds at payment time
+    if (params.transferDestination) {
+      createParams.application_fee_amount = params.applicationFeeAmount;
+      createParams.transfer_data = {
+        destination: params.transferDestination,
+      };
+    }
+
     return this.stripe.paymentIntents.create(
-      {
-        amount: params.amount,
-        currency: params.currency.toLowerCase(),
-        automatic_payment_methods: { enabled: true },
-        metadata: params.metadata ?? {},
-      },
+      createParams,
       { idempotencyKey: params.idempotencyKey },
     );
   }
@@ -102,5 +119,49 @@ export class StripeService {
       destination: params.destination,
       description: params.description,
     });
+  }
+
+  /**
+   * Create a payout from the connected account's Stripe balance to their bank.
+   * This is used for the Vinted-style wallet: funds sit in the connected
+   * account's Stripe balance until the artist requests a payout.
+   */
+  async createPayout(params: {
+    amount: number;
+    currency: string;
+    stripeAccountId: string;
+    description?: string;
+  }): Promise<Stripe.Payout> {
+    this.logger.log(
+      `Creating Stripe Payout: ${params.amount} ${params.currency} → ${params.stripeAccountId}`,
+    );
+
+    return this.stripe.payouts.create(
+      {
+        amount: params.amount,
+        currency: params.currency.toLowerCase(),
+        description: params.description,
+      },
+      { stripeAccount: params.stripeAccountId },
+    );
+  }
+
+  /**
+   * Retrieve the Stripe balance for a connected account.
+   * Returns available and pending amounts in EUR.
+   */
+  async retrieveConnectedBalance(stripeAccountId: string): Promise<{
+    available: number;
+    pending: number;
+  }> {
+    const balance = await this.stripe.balance.retrieve(
+      {},
+      { stripeAccount: stripeAccountId },
+    );
+
+    const available = balance.available.find((b) => b.currency === 'eur')?.amount ?? 0;
+    const pending = balance.pending.find((b) => b.currency === 'eur')?.amount ?? 0;
+
+    return { available, pending };
   }
 }

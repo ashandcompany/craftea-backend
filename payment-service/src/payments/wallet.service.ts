@@ -171,12 +171,30 @@ export class WalletService {
 
   async getMyWallet(authHeader: string | undefined) {
     const artist = await this.getArtistProfileByAuth(authHeader);
+
+    // Fetch Stripe balance for the connected account (source of truth for funds)
+    let stripeAvailable = 0;
+    let stripePending = 0;
+    if (artist.stripe_account_id && artist.stripe_onboarded) {
+      try {
+        const stripeBalance = await this.stripeService.retrieveConnectedBalance(
+          artist.stripe_account_id,
+        );
+        stripeAvailable = stripeBalance.available;
+        stripePending = stripeBalance.pending;
+      } catch (error) {
+        this.logger.warn(`Could not fetch Stripe balance for artist ${artist.id}: ${error}`);
+      }
+    }
+
     return {
       artistId: artist.id,
       stripeAccountId: artist.stripe_account_id ?? null,
       stripeOnboarded: Boolean(artist.stripe_onboarded),
       walletBalance: Number(artist.wallet_balance ?? 0),
       pendingBalance: Number(artist.pending_balance ?? 0),
+      stripeAvailable,
+      stripePending,
     };
   }
 
@@ -214,21 +232,37 @@ export class WalletService {
       throw new BadRequestException('Compte Stripe non configuré');
     }
 
-    const walletBalance = Number(artist.wallet_balance ?? 0);
-    if (walletBalance < amountCents) {
-      throw new BadRequestException('Solde insuffisant');
-    }
     if (amountCents < 1000) {
       throw new BadRequestException('Minimum de retrait : 10€');
     }
 
-    const transfer = await this.stripeService.createTransfer({
+    // Check the actual Stripe balance (source of truth)
+    let stripeAvailable = 0;
+    try {
+      const stripeBalance = await this.stripeService.retrieveConnectedBalance(
+        artist.stripe_account_id,
+      );
+      stripeAvailable = stripeBalance.available;
+    } catch (error) {
+      this.logger.error(`Cannot retrieve Stripe balance for payout: ${error}`);
+      throw new BadRequestException('Impossible de vérifier le solde Stripe');
+    }
+
+    if (amountCents > stripeAvailable) {
+      throw new BadRequestException(
+        `Solde Stripe insuffisant (${(stripeAvailable / 100).toFixed(2)}€ disponible)`,
+      );
+    }
+
+    // Create a payout from the connected account's Stripe balance to their bank
+    const payout = await this.stripeService.createPayout({
       amount: amountCents,
       currency: 'eur',
-      destination: artist.stripe_account_id,
+      stripeAccountId: artist.stripe_account_id,
       description: `Retrait artiste ${artist.id}`,
     });
 
+    // Debit the local wallet balance to keep it in sync
     await firstValueFrom(
       this.httpService.patch(
         `${this.artistUrl}/api/artists/internal/${artist.id}/wallet/debit`,
@@ -244,11 +278,11 @@ export class WalletService {
         type: WalletTransactionType.DEBIT,
         status: WalletTransactionStatus.PAID,
         description: 'Retrait vers compte bancaire',
-        stripe_transfer_id: transfer.id,
+        stripe_transfer_id: payout.id,
       }),
     );
 
-    return { success: true, transferId: transfer.id, transactionId: tx.id, userId };
+    return { success: true, payoutId: payout.id, transactionId: tx.id, userId };
   }
 
   async handleTransferFailed(transfer: { id: string }) {
@@ -286,6 +320,50 @@ export class WalletService {
 
     tx.status = WalletTransactionStatus.PENDING;
     tx.description = `${tx.description} (échec Stripe: ${transfer.id})`;
+    await this.walletTxRepo.save(tx);
+
+    return { recovered: true, transactionId: tx.id };
+  }
+
+  /**
+   * Handle a failed Stripe Payout (po_...).
+   * Restores the artist's wallet balance when a payout to their bank fails.
+   */
+  async handlePayoutFailed(payout: { id: string }) {
+    if (!payout?.id) {
+      throw new BadRequestException('Payout Stripe invalide');
+    }
+
+    const tx = await this.walletTxRepo.findOne({
+      where: {
+        stripe_transfer_id: payout.id,
+        type: WalletTransactionType.DEBIT,
+      },
+    });
+
+    if (!tx) {
+      this.logger.warn(`Aucune transaction locale trouvée pour payout.failed ${payout.id}`);
+      return { recovered: false, reason: 'not_found' };
+    }
+
+    if (tx.status !== WalletTransactionStatus.PAID) {
+      return { recovered: false, reason: 'already_handled', transactionId: tx.id };
+    }
+
+    // Restore the artist's wallet balance
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/${tx.artist_id}/wallet/credit`,
+        {
+          amount_cents: tx.amount_cents,
+          description: `Rollback retrait échoué (${payout.id})`,
+        },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+
+    tx.status = WalletTransactionStatus.PENDING;
+    tx.description = `${tx.description} (échec payout: ${payout.id})`;
     await this.walletTxRepo.save(tx);
 
     return { recovered: true, transactionId: tx.id };

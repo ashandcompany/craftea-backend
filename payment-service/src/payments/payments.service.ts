@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 import { Payment, PaymentStatus } from './entities/payment.entity.js';
 import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
@@ -36,18 +39,67 @@ export class PaymentsService {
     }
 
   private readonly logger = new Logger(PaymentsService.name);
+  private readonly orderUrl: string;
+  private readonly artistUrl: string;
 
   constructor(
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     private readonly stripeService: StripeService,
     private readonly walletService: WalletService,
-  ) {}
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {
+    this.orderUrl = this.configService.get<string>('ORDER_URL', 'http://order-service:3005');
+    this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
+  }
 
   /**
    * Step 1 – Create a Stripe PaymentIntent and persist a local Payment row.
    * Returns the Payment with `stripe_client_secret` so the frontend can
    * confirm payment via Stripe.js.
    */
+  /**
+   * Resolves the artist's Stripe account ID from the order items.
+   * Looks up shop → artist → stripe_account_id.
+   */
+  private async resolveArtistStripeAccount(orderId: number): Promise<string | null> {
+    try {
+      // Get order with items to find shop_ids (internal endpoint, no JWT needed)
+      const { data: order } = await firstValueFrom(
+        this.httpService.get(`${this.orderUrl}/api/orders/internal/${orderId}`, {
+          headers: { 'x-service-token': this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '') },
+        }),
+      );
+
+      const shopIds = [...new Set(
+        (order?.items || [])
+          .map((item: any) => item.shop_id)
+          .filter((id: number | undefined): id is number => id != null),
+      )];
+
+      if (shopIds.length === 0) return null;
+
+      // Get the first shop's artist (destination charges only support one destination)
+      const { data: shop } = await firstValueFrom(
+        this.httpService.get(`${this.artistUrl}/api/shops/${shopIds[0]}`),
+      );
+
+      if (!shop?.artist_id) return null;
+
+      // Get the artist profile to find stripe_account_id
+      const { data: artist } = await firstValueFrom(
+        this.httpService.get(`${this.artistUrl}/api/artists/${shop.artist_id}`),
+      );
+
+      if (!artist?.stripe_account_id || !artist?.stripe_onboarded) return null;
+
+      return artist.stripe_account_id;
+    } catch (error) {
+      this.logger.warn(`Could not resolve artist Stripe account for order ${orderId}: ${error}`);
+      return null;
+    }
+  }
+
   async createIntent(dto: CreatePaymentDto, userId: number): Promise<Payment> {
     const idempotencyKey = uuidv4();
     const amountInCents = Math.round(dto.amount * 100);
@@ -56,7 +108,16 @@ export class PaymentsService {
     const platformFeeFixed = 15; // 0.15 € in cents
     const platformFeeCents = Math.round(amountInCents * platformFeePercent) + platformFeeFixed;
     const artistAmountCents = amountInCents - platformFeeCents;
-    const artistStripeAccountId = dto.artist_stripe_account_id ?? '';
+
+    // Resolve artist's Stripe connected account from the order
+    let artistStripeAccountId = dto.artist_stripe_account_id ?? '';
+    if (!artistStripeAccountId && dto.order_id) {
+      const resolved = await this.resolveArtistStripeAccount(dto.order_id);
+      if (resolved) artistStripeAccountId = resolved;
+    }
+
+    // Use destination charges when we have a valid connected account
+    const useDestinationCharge = Boolean(artistStripeAccountId);
 
     const intent = await this.stripeService.createPaymentIntent({
       amount: amountInCents,
@@ -68,6 +129,13 @@ export class PaymentsService {
         artistStripeAccountId,
         platformFee: String(platformFeeCents),
       },
+      // Destination charge: Stripe splits funds automatically
+      ...(useDestinationCharge
+        ? {
+            applicationFeeAmount: platformFeeCents,
+            transferDestination: artistStripeAccountId,
+          }
+        : {}),
     });
 
     const payment = this.paymentsRepo.create({
@@ -77,7 +145,7 @@ export class PaymentsService {
       amount_cents: amountInCents,
       platform_fee_cents: platformFeeCents,
       artist_amount_cents: artistAmountCents,
-      artist_stripe_account_id: dto.artist_stripe_account_id ?? undefined,
+      artist_stripe_account_id: artistStripeAccountId || undefined,
       currency,
       status: PaymentStatus.PENDING,
       idempotency_key: idempotencyKey,
