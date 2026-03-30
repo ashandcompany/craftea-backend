@@ -90,6 +90,26 @@ export class ArtistsController {
     return this.artistsService.debitWallet(id, dto.amount_cents);
   }
 
+  @Patch('internal/:id/wallet/add-pending')
+  internalAddPendingBalance(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.addPendingBalance(id, dto.amount_cents);
+  }
+
+  @Patch('internal/:id/wallet/subtract-pending')
+  internalSubtractPendingBalance(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.subtractPendingBalance(id, dto.amount_cents);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist')
   @Get('profile/me/stripe/status')

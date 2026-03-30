@@ -28,4 +28,30 @@ export class PaymentsEventsController {
 
     return this.paymentsService.handleOrderCompleted(dto);
   }
+
+  @Post('order-confirmed')
+  handleOrderConfirmed(
+    @Body() dto: OrderCompletedEventDto,
+    @Headers('x-service-token') serviceToken: string,
+  ) {
+    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    if (!expected || serviceToken !== expected) {
+      throw new ForbiddenException('Invalid service token');
+    }
+
+    return this.paymentsService.handleOrderConfirmed(dto);
+  }
+
+  @Post('order-cancelled')
+  handleOrderCancelled(
+    @Body() dto: OrderCompletedEventDto,
+    @Headers('x-service-token') serviceToken: string,
+  ) {
+    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    if (!expected || serviceToken !== expected) {
+      throw new ForbiddenException('Invalid service token');
+    }
+
+    return this.paymentsService.handleOrderCancelled(dto);
+  }
 }

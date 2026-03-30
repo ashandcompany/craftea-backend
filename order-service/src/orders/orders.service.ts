@@ -201,12 +201,31 @@ export class OrdersService {
       await this.handleOrderCancellation(order);
     }
 
+    const wasConfirmed = order.status === OrderStatus.CONFIRMED;
     const wasDelivered = order.status === OrderStatus.DELIVERED;
+    const preStatus = order.status;
     order.status = dto.status;
     const saved = await this.ordersRepo.save(order);
 
     if (!wasDelivered && dto.status === OrderStatus.DELIVERED) {
       await this.emitOrderCompleted(saved);
+    }
+
+    if (!wasConfirmed && dto.status === OrderStatus.CONFIRMED) {
+      await this.emitOrderConfirmed(saved);
+    }
+
+    // Annulation d'une commande déjà confirmée : on retire le montant en attente du wallet
+    const postConfirmStatuses: OrderStatus[] = [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.SHIPPED,
+    ];
+    if (
+      dto.status === OrderStatus.CANCELLED &&
+      postConfirmStatuses.includes(preStatus)
+    ) {
+      await this.emitOrderCancelled(saved);
     }
 
     return saved;
@@ -240,6 +259,68 @@ export class OrdersService {
       );
     } catch (error) {
       console.error(`Failed to emit order.completed for order ${order.id}:`, error);
+    }
+  }
+
+  private async emitOrderConfirmed(order: Order): Promise<void> {
+    const splits = await this.buildArtistGrossSplits(order);
+    if (splits.length === 0) return;
+
+    const amountCents = Math.round(Number(order.total ?? 0) * 100);
+    if (amountCents <= 0) return;
+
+    const fallbackArtistId = splits[0]?.artistId;
+
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.paymentUrl}/api/payments/events/order-confirmed`,
+          {
+            orderId: order.id,
+            artistId: fallbackArtistId,
+            amount: amountCents,
+            splits,
+          },
+          {
+            headers: {
+              'x-service-token': this.internalServiceToken,
+            },
+          },
+        ),
+      );
+    } catch (error) {
+      console.error(`Failed to emit order.confirmed for order ${order.id}:`, error);
+    }
+  }
+
+  private async emitOrderCancelled(order: Order): Promise<void> {
+    const splits = await this.buildArtistGrossSplits(order);
+    if (splits.length === 0) return;
+
+    const amountCents = Math.round(Number(order.total ?? 0) * 100);
+    if (amountCents <= 0) return;
+
+    const fallbackArtistId = splits[0]?.artistId;
+
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.paymentUrl}/api/payments/events/order-cancelled`,
+          {
+            orderId: order.id,
+            artistId: fallbackArtistId,
+            amount: amountCents,
+            splits,
+          },
+          {
+            headers: {
+              'x-service-token': this.internalServiceToken,
+            },
+          },
+        ),
+      );
+    } catch (error) {
+      console.error(`Failed to emit order.cancelled for order ${order.id}:`, error);
     }
   }
 

@@ -318,6 +318,35 @@ export class ArtistsService {
     };
   }
 
+  async addPendingBalance(artistId: number, amountCents: number) {
+    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+
+    profile.pending_balance = Number(profile.pending_balance ?? 0) + amountCents;
+    await this.artistsRepo.save(profile);
+
+    return {
+      artistId: profile.id,
+      pendingBalance: Number(profile.pending_balance ?? 0),
+      amountAdded: amountCents,
+    };
+  }
+
+  async subtractPendingBalance(artistId: number, amountCents: number) {
+    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+
+    const current = Number(profile.pending_balance ?? 0);
+    profile.pending_balance = Math.max(0, current - amountCents);
+    await this.artistsRepo.save(profile);
+
+    return {
+      artistId: profile.id,
+      pendingBalance: Number(profile.pending_balance ?? 0),
+      amountSubtracted: amountCents,
+    };
+  }
+
   async adminGetAll() {
     return this.artistsRepo.find({ relations: ['shops'] });
   }

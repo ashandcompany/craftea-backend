@@ -135,6 +135,53 @@ export class PaymentsService {
     return payment;
   }
 
+  async handleOrderConfirmed(payload: OrderCompletedEventDto): Promise<{ success: true } | { skipped: true }> {
+    const payment = await this.paymentsRepo.findOne({
+      where: { order_id: payload.orderId },
+      order: { created_at: 'DESC' },
+    });
+
+    if (!payment || payment.status !== PaymentStatus.COMPLETED) {
+      this.logger.warn(
+        `Order ${payload.orderId} confirmed but payment not found or not completed`,
+      );
+      return { skipped: true };
+    }
+
+    const artistAmountCents = Number(payment.artist_amount_cents ?? 0);
+    if (artistAmountCents <= 0) return { skipped: true };
+
+    const credits = this.computeArtistCredits(artistAmountCents, payload);
+    if (credits.length === 0) return { skipped: true };
+
+    for (const credit of credits) {
+      if (credit.amountCents <= 0) continue;
+      await this.walletService.creditPending(credit.artistId, credit.amountCents, payload.orderId);
+    }
+
+    return { success: true };
+  }
+
+  async handleOrderCancelled(payload: OrderCompletedEventDto): Promise<{ success: true } | { skipped: true }> {
+    const payment = await this.paymentsRepo.findOne({
+      where: { order_id: payload.orderId },
+      order: { created_at: 'DESC' },
+    });
+
+    if (!payment) return { skipped: true };
+
+    const artistAmountCents = Number(payment.artist_amount_cents ?? 0);
+    if (artistAmountCents <= 0) return { skipped: true };
+
+    const credits = this.computeArtistCredits(artistAmountCents, payload);
+    for (const credit of credits) {
+      if (credit.amountCents <= 0) continue;
+      await this.walletService.cancelPending(credit.artistId, credit.amountCents, payload.orderId);
+    }
+
+    return { success: true };
+  }
+
   private computeArtistCredits(
     totalArtistAmountCents: number,
     payload: OrderCompletedEventDto,

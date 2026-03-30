@@ -59,7 +59,7 @@ export class WalletService {
     return data;
   }
 
-  async credit(artistId: number, amountCents: number, orderId: number) {
+  async creditPending(artistId: number, amountCents: number, orderId: number) {
     const existing = await this.walletTxRepo.findOne({
       where: {
         artist_id: artistId,
@@ -74,11 +74,64 @@ export class WalletService {
 
     await firstValueFrom(
       this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/${artistId}/wallet/add-pending`,
+        { amount_cents: amountCents, description: `Commande #${orderId} confirmée` },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+
+    return this.walletTxRepo.save(
+      this.walletTxRepo.create({
+        artist_id: artistId,
+        order_id: orderId,
+        amount_cents: amountCents,
+        type: WalletTransactionType.CREDIT,
+        status: WalletTransactionStatus.PENDING,
+        description: `Commande #${orderId} confirmée`,
+      }),
+    );
+  }
+
+  async credit(artistId: number, amountCents: number, orderId: number) {
+    const existing = await this.walletTxRepo.findOne({
+      where: {
+        artist_id: artistId,
+        order_id: orderId,
+        type: WalletTransactionType.CREDIT,
+      },
+    });
+
+    if (existing?.status === WalletTransactionStatus.AVAILABLE) {
+      return existing;
+    }
+
+    await firstValueFrom(
+      this.httpService.patch(
         `${this.artistUrl}/api/artists/internal/${artistId}/wallet/credit`,
         { amount_cents: amountCents, description: `Commande #${orderId} validée` },
         { headers: { 'x-service-token': this.internalServiceToken } },
       ),
     );
+
+    // Best-effort: subtract from pending_balance (amount moves from pending → available)
+    try {
+      await firstValueFrom(
+        this.httpService.patch(
+          `${this.artistUrl}/api/artists/internal/${artistId}/wallet/subtract-pending`,
+          { amount_cents: amountCents },
+          { headers: { 'x-service-token': this.internalServiceToken } },
+        ),
+      );
+    } catch {
+      // best-effort, pending_balance may not have been set if order skipped CONFIRMED
+    }
+
+    if (existing) {
+      // Upgrade PENDING → AVAILABLE
+      existing.status = WalletTransactionStatus.AVAILABLE;
+      existing.description = `Commande #${orderId} validée`;
+      return this.walletTxRepo.save(existing);
+    }
 
     return this.walletTxRepo.save(
       this.walletTxRepo.create({
@@ -90,6 +143,30 @@ export class WalletService {
         description: `Commande #${orderId} validée`,
       }),
     );
+  }
+
+  async cancelPending(artistId: number, amountCents: number, orderId: number) {
+    const existing = await this.walletTxRepo.findOne({
+      where: {
+        artist_id: artistId,
+        order_id: orderId,
+        type: WalletTransactionType.CREDIT,
+        status: WalletTransactionStatus.PENDING,
+      },
+    });
+
+    if (!existing) return { skipped: true };
+
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/${artistId}/wallet/subtract-pending`,
+        { amount_cents: amountCents },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+
+    await this.walletTxRepo.remove(existing);
+    return { cancelled: true, orderId };
   }
 
   async getMyWallet(authHeader: string | undefined) {
