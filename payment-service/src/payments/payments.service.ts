@@ -52,8 +52,9 @@ export class PaymentsService {
     const idempotencyKey = uuidv4();
     const amountInCents = Math.round(dto.amount * 100);
     const currency = dto.currency ?? 'EUR';
-    const platformFeePercent = 0.10;
-    const platformFeeCents = Math.round(amountInCents * platformFeePercent);
+    const platformFeePercent = 0.075;
+    const platformFeeFixed = 15; // 0.15 € in cents
+    const platformFeeCents = Math.round(amountInCents * platformFeePercent) + platformFeeFixed;
     const artistAmountCents = amountInCents - platformFeeCents;
     const artistStripeAccountId = dto.artist_stripe_account_id ?? '';
 
