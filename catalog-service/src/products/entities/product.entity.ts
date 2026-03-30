@@ -10,9 +10,9 @@ import {
   JoinTable,
   JoinColumn,
 } from 'typeorm';
-import { Category } from '../../categories/entities/category.entity.js';
-import { Tag } from '../../tags/entities/tag.entity.js';
-import { ProductImage } from './product-image.entity.js';
+import { Category } from '../../categories/entities/category.entity';
+import { Tag } from '../../tags/entities/tag.entity';
+import { ProductImage } from './product-image.entity';
 
 @Entity('products')
 export class Product {

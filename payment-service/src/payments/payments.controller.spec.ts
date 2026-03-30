@@ -3,6 +3,7 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PaymentStatus } from './entities/payment.entity';
 import { WalletService } from './wallet.service';
+import { StripeService } from './stripe.service';
 
 describe('PaymentsController', () => {
   let controller: PaymentsController;
@@ -50,6 +51,17 @@ describe('PaymentsController', () => {
           provide: WalletService,
           useValue: {
             requestPayout: jest.fn(),
+            getMyWallet: jest.fn(),
+            listMyTransactions: jest.fn(),
+            listTransactionsByArtist: jest.fn(),
+            listAllTransactions: jest.fn(),
+            handleTransferFailed: jest.fn(),
+          },
+        },
+        {
+          provide: StripeService,
+          useValue: {
+            constructWebhookEvent: jest.fn(),
           },
         },
       ],

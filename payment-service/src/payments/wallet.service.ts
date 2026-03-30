@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -25,6 +26,7 @@ interface ArtistProfileSnapshot {
 
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
   private artistUrl: string;
   private internalServiceToken: string;
 
@@ -170,5 +172,45 @@ export class WalletService {
     );
 
     return { success: true, transferId: transfer.id, transactionId: tx.id, userId };
+  }
+
+  async handleTransferFailed(transfer: { id: string }) {
+    if (!transfer?.id) {
+      throw new BadRequestException('Transfer Stripe invalide');
+    }
+
+    const tx = await this.walletTxRepo.findOne({
+      where: {
+        stripe_transfer_id: transfer.id,
+        type: WalletTransactionType.DEBIT,
+      },
+    });
+
+    if (!tx) {
+      this.logger.warn(`Aucune transaction locale trouvée pour transfer.failed ${transfer.id}`);
+      return { recovered: false, reason: 'not_found' };
+    }
+
+    // Idempotence webhook: rollback déjà traité.
+    if (tx.status !== WalletTransactionStatus.PAID) {
+      return { recovered: false, reason: 'already_handled', transactionId: tx.id };
+    }
+
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/${tx.artist_id}/wallet/credit`,
+        {
+          amount_cents: tx.amount_cents,
+          description: `Rollback retrait échoué (${transfer.id})`,
+        },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+
+    tx.status = WalletTransactionStatus.PENDING;
+    tx.description = `${tx.description} (échec Stripe: ${transfer.id})`;
+    await this.walletTxRepo.save(tx);
+
+    return { recovered: true, transactionId: tx.id };
   }
 }

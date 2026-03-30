@@ -14,9 +14,27 @@ import { RefundPaymentDto } from './dto/refund-payment.dto.js';
 import { StripeService } from './stripe.service.js';
 import { WalletService } from './wallet.service.js';
 import { OrderCompletedEventDto } from './dto/order-completed-event.dto.js';
+import Stripe from 'stripe';
 
 @Injectable()
 export class PaymentsService {
+    private applyIntentStatus(payment: Payment, intent: Stripe.PaymentIntent) {
+      if (intent.status === 'succeeded') {
+        payment.status = PaymentStatus.COMPLETED;
+        const latestCharge = intent.latest_charge;
+        if (latestCharge && typeof latestCharge === 'object' && 'receipt_url' in latestCharge) {
+          payment.stripe_receipt_url = (latestCharge as any).receipt_url ?? undefined;
+        }
+        return;
+      }
+
+      if (intent.status === 'requires_payment_method' || intent.status === 'canceled') {
+        payment.status = PaymentStatus.FAILED;
+        payment.error_detail = `Stripe status: ${intent.status}`;
+      }
+      // processing / requires_action => keep pending
+    }
+
   private readonly logger = new Logger(PaymentsService.name);
 
   constructor(
@@ -170,18 +188,24 @@ export class PaymentsService {
 
     const intent = await this.stripeService.retrievePaymentIntent(dto.payment_intent_id);
 
-    if (intent.status === 'succeeded') {
-      payment.status = PaymentStatus.COMPLETED;
-      const latestCharge = intent.latest_charge;
-      if (latestCharge && typeof latestCharge === 'object' && 'receipt_url' in latestCharge) {
-        payment.stripe_receipt_url = (latestCharge as any).receipt_url ?? undefined;
-      }
-    } else if (intent.status === 'requires_payment_method' || intent.status === 'canceled') {
-      payment.status = PaymentStatus.FAILED;
-      payment.error_detail = `Stripe status: ${intent.status}`;
-    }
-    // Other statuses (processing, requires_action…) stay PENDING
+    this.applyIntentStatus(payment, intent);
 
+    await this.paymentsRepo.save(payment);
+    return payment;
+  }
+
+  async confirmPaymentFromWebhook(intent: Stripe.PaymentIntent): Promise<Payment | null> {
+    const payment = await this.paymentsRepo.findOne({
+      where: { stripe_payment_intent_id: intent.id },
+      order: { created_at: 'DESC' },
+    });
+
+    if (!payment) {
+      this.logger.warn(`Webhook Stripe reçu pour PI inconnue: ${intent.id}`);
+      return null;
+    }
+
+    this.applyIntentStatus(payment, intent);
     await this.paymentsRepo.save(payment);
     return payment;
   }

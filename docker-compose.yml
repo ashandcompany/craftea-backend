@@ -249,6 +249,7 @@ services:
     environment:
       PORT: 3007
       STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
       INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
       DB_HOST: db
       DB_PORT: 5432
@@ -260,6 +261,7 @@ services:
       ARTIST_URL: http://artist-service:3002
     secrets:
       - stripe_secret_key
+      - stripe_webhook_secret
     depends_on:
       db:
         condition: service_healthy
@@ -322,6 +324,8 @@ services:
 secrets:
   stripe_secret_key:
     file: ./docker/secrets/stripe_secret_key.txt
+  stripe_webhook_secret:
+    file: ./docker/secrets/stripe_webhook_secret.txt
 
 volumes:
   postgres_data:

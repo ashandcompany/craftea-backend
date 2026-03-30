@@ -241,6 +241,35 @@ describe('PaymentsService', () => {
     });
   });
 
+  describe('confirmPaymentFromWebhook', () => {
+    it('should complete payment by Stripe payment_intent id', async () => {
+      paymentsRepo.findOne.mockResolvedValue({ ...mockPayment });
+      paymentsRepo.save.mockImplementation(async (p: any) => p);
+
+      const result = await service.confirmPaymentFromWebhook({
+        id: 'pi_test_123',
+        status: 'succeeded',
+        latest_charge: { receipt_url: 'https://receipt.stripe.com/from-webhook' },
+      } as any);
+
+      expect(paymentsRepo.findOne).toHaveBeenCalledWith({
+        where: { stripe_payment_intent_id: 'pi_test_123' },
+        order: { created_at: 'DESC' },
+      });
+      expect(result?.status).toBe(PaymentStatus.COMPLETED);
+      expect(result?.stripe_receipt_url).toBe('https://receipt.stripe.com/from-webhook');
+    });
+
+    it('should return null when payment is unknown', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.confirmPaymentFromWebhook({ id: 'pi_unknown' } as any);
+
+      expect(result).toBeNull();
+      expect(paymentsRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findByUser', () => {
     it('should return payments for a user', async () => {
       paymentsRepo.find.mockResolvedValue([mockPayment]);

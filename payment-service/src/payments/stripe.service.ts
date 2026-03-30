@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 export class StripeService {
   private readonly logger = new Logger(StripeService.name);
   private readonly stripe: Stripe;
+  private readonly webhookSecret: string;
 
   constructor(private readonly configService: ConfigService) {
     let secretKey = this.configService.get<string>('STRIPE_SECRET_KEY', '').trim();
@@ -21,6 +22,23 @@ export class StripeService {
     }
 
     this.stripe = new Stripe(secretKey || 'sk_test_placeholder');
+    this.webhookSecret = this.configService
+      .get<string>('STRIPE_WEBHOOK_SECRET', '')
+      .trim();
+  }
+
+  constructWebhookEvent(rawBody: Buffer | string, signature: string): Stripe.Event {
+    if (!this.webhookSecret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET manquant');
+    }
+
+    if (!this.webhookSecret.startsWith('whsec_')) {
+      throw new Error(
+        'STRIPE_WEBHOOK_SECRET invalide: utilisez le secret endpoint webhook Stripe (whsec_...), pas une clé API sk_...'
+      );
+    }
+
+    return this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
   }
 
   /**
