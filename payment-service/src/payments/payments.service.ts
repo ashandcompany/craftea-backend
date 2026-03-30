@@ -326,6 +326,101 @@ export class PaymentsService {
     return payment;
   }
 
+  /**
+   * Handle a charge.refunded webhook event.
+   * Marks the payment as REFUNDED and reverses wallet credits for the related order.
+   */
+  async handleChargeRefundedFromWebhook(charge: Stripe.Charge): Promise<void> {
+    const piId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : charge.payment_intent?.id;
+
+    if (!piId) {
+      this.logger.warn(`charge.refunded sans payment_intent: ${charge.id}`);
+      return;
+    }
+
+    const payment = await this.paymentsRepo.findOne({
+      where: { stripe_payment_intent_id: piId },
+      order: { created_at: 'DESC' },
+    });
+
+    if (!payment) {
+      this.logger.warn(`charge.refunded: aucun paiement local pour PI ${piId}`);
+      return;
+    }
+
+    // Mark payment as refunded (idempotent)
+    if (payment.status !== PaymentStatus.REFUNDED) {
+      payment.status = PaymentStatus.REFUNDED;
+      await this.paymentsRepo.save(payment);
+    }
+
+    // Reverse wallet credits if they were applied
+    if (payment.wallet_credited && payment.order_id) {
+      const artistAmountCents = Number(payment.artist_amount_cents ?? 0);
+      if (artistAmountCents > 0) {
+        const credits = this.computeArtistCredits(artistAmountCents, {
+          orderId: payment.order_id,
+          artistId: Number(payment.artist_stripe_account_id ? 0 : 0),
+        } as OrderCompletedEventDto);
+
+        // If we can't compute splits, use the order lookup fallback
+        if (credits.length === 0 && payment.order_id) {
+          try {
+            const resolved = await this.resolveArtistIdFromOrder(payment.order_id);
+            if (resolved) {
+              await this.walletService.cancelPending(resolved, artistAmountCents, payment.order_id);
+            }
+          } catch (error) {
+            this.logger.error(`Failed to reverse wallet for refund on order ${payment.order_id}: ${error}`);
+          }
+        } else {
+          for (const credit of credits) {
+            if (credit.amountCents <= 0) continue;
+            await this.walletService.cancelPending(credit.artistId, credit.amountCents, payment.order_id);
+          }
+        }
+
+        payment.wallet_credited = false;
+        await this.paymentsRepo.save(payment);
+      }
+    }
+
+    this.logger.log(`charge.refunded traité pour PI ${piId}`);
+  }
+
+  /**
+   * Resolve artist ID from order (for refund reversal).
+   */
+  private async resolveArtistIdFromOrder(orderId: number): Promise<number | null> {
+    try {
+      const { data: order } = await firstValueFrom(
+        this.httpService.get(`${this.orderUrl}/api/orders/internal/${orderId}`, {
+          headers: { 'x-service-token': this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '') },
+        }),
+      );
+
+      const shopIds = [...new Set(
+        (order?.items || [])
+          .map((item: any) => item.shop_id)
+          .filter((id: number | undefined): id is number => id != null),
+      )];
+
+      if (shopIds.length === 0) return null;
+
+      const { data: shop } = await firstValueFrom(
+        this.httpService.get(`${this.artistUrl}/api/shops/${shopIds[0]}`),
+      );
+
+      return shop?.artist_id ?? null;
+    } catch (error) {
+      this.logger.warn(`Could not resolve artist ID for order ${orderId}: ${error}`);
+      return null;
+    }
+  }
+
   async findByUser(userId: number): Promise<Payment[]> {
     return this.paymentsRepo.find({
       where: { user_id: userId },

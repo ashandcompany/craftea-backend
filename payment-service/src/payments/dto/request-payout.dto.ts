@@ -2,6 +2,6 @@ import { IsInt, Min } from 'class-validator';
 
 export class RequestPayoutDto {
   @IsInt()
-  @Min(1000)
+  @Min(100)
   amount_cents: number;
 }

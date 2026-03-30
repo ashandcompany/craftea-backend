@@ -354,6 +354,41 @@ export class ArtistsService {
     };
   }
 
+  /**
+   * Called from webhook account.updated — marks onboarding complete
+   * only if charges_enabled AND payouts_enabled.
+   */
+  async markStripeReady(stripeAccountId: string) {
+    const profile = await this.artistsRepo.findOne({
+      where: { stripe_account_id: stripeAccountId },
+    });
+    if (!profile) return { updated: false, reason: 'not_found' };
+
+    if (profile.stripe_onboarded) {
+      return { updated: false, reason: 'already_onboarded' };
+    }
+
+    profile.stripe_onboarded = true;
+    await this.artistsRepo.save(profile);
+    return { updated: true, artistId: profile.id };
+  }
+
+  /**
+   * Called from webhook account.updated when capabilities are NOT yet ready.
+   * Ensures stripe_onboarded is false if account regresses.
+   */
+  async markStripeNotReady(stripeAccountId: string) {
+    const profile = await this.artistsRepo.findOne({
+      where: { stripe_account_id: stripeAccountId },
+    });
+    if (!profile) return { updated: false, reason: 'not_found' };
+    if (!profile.stripe_onboarded) return { updated: false, reason: 'already_not_ready' };
+
+    profile.stripe_onboarded = false;
+    await this.artistsRepo.save(profile);
+    return { updated: true, artistId: profile.id };
+  }
+
   async adminGetAll() {
     return this.artistsRepo.find({ relations: ['shops'] });
   }

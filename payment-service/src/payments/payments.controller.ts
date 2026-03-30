@@ -16,6 +16,8 @@ import {
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { PaymentsService } from './payments.service.js';
 import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
 import { RefundPaymentDto } from './dto/refund-payment.dto.js';
@@ -25,6 +27,8 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { WalletService } from './wallet.service.js';
 import { StripeService } from './stripe.service.js';
+import { ProcessedWebhookEvent } from './entities/processed-webhook-event.entity.js';
+import type Stripe from 'stripe';
 
 @Controller('payments')
 export class PaymentsController {
@@ -34,6 +38,8 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly walletService: WalletService,
     private readonly stripeService: StripeService,
+    @InjectRepository(ProcessedWebhookEvent)
+    private readonly webhookEventRepo: Repository<ProcessedWebhookEvent>,
   ) {}
 
   /** Webhook Stripe: confirmation serveur-side signée */
@@ -52,7 +58,7 @@ export class PaymentsController {
       throw new BadRequestException('Raw body Stripe indisponible');
     }
 
-    let event;
+    let event: Stripe.Event;
     try {
       event = this.stripeService.constructWebhookEvent(rawBody, signature);
     } catch (error: unknown) {
@@ -61,30 +67,61 @@ export class PaymentsController {
       );
     }
 
+    // ── Idempotency: skip already-processed events ──────────────────────
+    const existing = await this.webhookEventRepo.findOne({
+      where: { stripe_event_id: event.id },
+    });
+    if (existing) {
+      this.logger.debug(`Webhook déjà traité: ${event.id} (${event.type})`);
+      return { received: true };
+    }
+
+    // ── Dispatch ────────────────────────────────────────────────────────
     switch (event.type) {
       case 'payment_intent.succeeded': {
-        await this.paymentsService.confirmPaymentFromWebhook(event.data.object);
+        await this.paymentsService.confirmPaymentFromWebhook(
+          event.data.object as Stripe.PaymentIntent,
+        );
         break;
       }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        await this.paymentsService.handleChargeRefundedFromWebhook(charge);
+        break;
+      }
+
       case 'transfer.failed': {
-        await this.walletService.handleTransferFailed(event.data.object);
+        await this.walletService.handleTransferFailed(event.data.object as { id: string });
         break;
       }
+
       case 'payout.failed': {
-        await this.walletService.handlePayoutFailed(event.data.object);
+        await this.walletService.handlePayoutFailed(event.data.object as { id: string });
         break;
       }
+
       case 'account.updated': {
-        // Stripe notifies when a connected account finishes onboarding
-        const account = event.data.object;
-        if (account.details_submitted) {
-          this.logger.log(`Stripe account ${account.id} onboarding completed`);
+        const account = event.data.object as Stripe.Account;
+        if (account.charges_enabled && account.payouts_enabled) {
+          await this.walletService.markArtistStripeReady(account.id);
+        } else {
+          await this.walletService.markArtistStripeNotReady(account.id);
         }
         break;
       }
+
       default:
         this.logger.debug(`Stripe webhook ignoré: ${event.type}`);
     }
+
+    // ── Mark event as processed ─────────────────────────────────────────
+    await this.webhookEventRepo.save(
+      this.webhookEventRepo.create({
+        stripe_event_id: event.id,
+        event_type: event.type,
+      }),
+    );
 
     return { received: true };
   }

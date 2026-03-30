@@ -232,8 +232,8 @@ export class WalletService {
       throw new BadRequestException('Compte Stripe non configuré');
     }
 
-    if (amountCents < 1000) {
-      throw new BadRequestException('Minimum de retrait : 10€');
+    if (amountCents < 100) {
+      throw new BadRequestException('Minimum de retrait : 1€');
     }
 
     // Check the actual Stripe balance (source of truth)
@@ -283,6 +283,28 @@ export class WalletService {
     );
 
     return { success: true, payoutId: payout.id, transactionId: tx.id, userId };
+  }
+
+  async markArtistStripeReady(stripeAccountId: string) {
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/stripe/mark-ready`,
+        { stripe_account_id: stripeAccountId },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+    this.logger.log(`Artist Stripe account ${stripeAccountId} marked ready`);
+  }
+
+  async markArtistStripeNotReady(stripeAccountId: string) {
+    await firstValueFrom(
+      this.httpService.patch(
+        `${this.artistUrl}/api/artists/internal/stripe/mark-not-ready`,
+        { stripe_account_id: stripeAccountId },
+        { headers: { 'x-service-token': this.internalServiceToken } },
+      ),
+    );
+    this.logger.log(`Artist Stripe account ${stripeAccountId} marked not ready`);
   }
 
   async handleTransferFailed(transfer: { id: string }) {

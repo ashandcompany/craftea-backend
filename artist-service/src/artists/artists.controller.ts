@@ -70,6 +70,24 @@ export class ArtistsController {
     return this.artistsService.createStripeAccount(req.user.id);
   }
 
+  @Patch('internal/stripe/mark-ready')
+  internalMarkStripeReady(
+    @Body() body: { stripe_account_id: string },
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.markStripeReady(body.stripe_account_id);
+  }
+
+  @Patch('internal/stripe/mark-not-ready')
+  internalMarkStripeNotReady(
+    @Body() body: { stripe_account_id: string },
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.markStripeNotReady(body.stripe_account_id);
+  }
+
   @Patch('internal/:id/wallet/credit')
   internalCreditWallet(
     @Param('id', ParseIntPipe) id: number,
