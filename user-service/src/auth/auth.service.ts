@@ -51,6 +51,7 @@ export class AuthService {
       lastname: user.lastname,
       email: user.email,
       is_active: user.is_active,
+      avatar_url: user.avatar_url,
       created_at: user.created_at,
       updated_at: user.updated_at,
     };

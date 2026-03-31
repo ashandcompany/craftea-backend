@@ -20,6 +20,15 @@ export class ProxyRouter {
             ) => {
               logger.info(`→ ${req.method} ${req.url} -> ${svc.target}`);
             },
+            proxyRes: (proxyRes: http.IncomingMessage) => {
+              // Strip upstream CORS headers — the gateway handles CORS centrally.
+              // Upstreams using app.enableCors() default to '*' which browsers
+              // reject for credentialed requests (credentials: 'include').
+              delete proxyRes.headers['access-control-allow-origin'];
+              delete proxyRes.headers['access-control-allow-methods'];
+              delete proxyRes.headers['access-control-allow-headers'];
+              delete proxyRes.headers['access-control-allow-credentials'];
+            },
             error: (
               err: Error,
               req: http.IncomingMessage,
