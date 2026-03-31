@@ -14,6 +14,8 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import type { Response as ExpressResponse, Request as ExpressRequest } from 'express';
 
@@ -87,5 +89,19 @@ export class AuthController {
     const user = await this.authService.me(req.user.id);
     if (!user) throw new NotFoundException('Utilisateur introuvable');
     return user;
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return { ok: true };
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { ok: true };
   }
 }

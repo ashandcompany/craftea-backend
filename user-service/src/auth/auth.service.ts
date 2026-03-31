@@ -3,16 +3,20 @@ import {
   ConflictException,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import { User, UserRole } from '../users/entities/user.entity.js';
 import { Log } from '../logs/entities/log.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { EmailService } from '../email/email.service.js';
+import { resetPasswordTemplate } from '../email/templates/reset-password.template.js';
 
 @Injectable()
 export class AuthService {
@@ -21,6 +25,7 @@ export class AuthService {
     @InjectRepository(Log) private logsRepo: Repository<Log>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   private generateAccessToken(user: User) {
@@ -122,5 +127,48 @@ export class AuthService {
 
   async me(userId: number) {
     return this.usersRepo.findOne({ where: { id: userId } });
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { email } });
+    // Always return 200 — do not expose whether the account exists
+    if (!user) return;
+
+    const rawToken = randomBytes(32).toString('hex');
+    const hashedToken = createHash('sha256').update(rawToken).digest('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // +1h
+
+    await this.usersRepo.update(user.id, {
+      reset_password_token: hashedToken,
+      reset_password_expires: expires,
+    });
+
+    const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
+    const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
+    const html = resetPasswordTemplate({ resetUrl });
+
+    await this.emailService.send(email, 'Réinitialisation de votre mot de passe Craftea', html);
+  }
+
+  async resetPassword(rawToken: string, newPassword: string): Promise<void> {
+    const hashedToken = createHash('sha256').update(rawToken).digest('hex');
+
+    const user = await this.usersRepo
+      .createQueryBuilder('user')
+      .addSelect('user.reset_password_token')
+      .addSelect('user.reset_password_expires')
+      .where('user.reset_password_token = :token', { token: hashedToken })
+      .getOne();
+
+    if (!user || !user.reset_password_expires || user.reset_password_expires < new Date()) {
+      throw new BadRequestException('Lien de réinitialisation invalide ou expiré');
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.usersRepo.update(user.id, {
+      password: hash,
+      reset_password_token: null,
+      reset_password_expires: null,
+    });
   }
 }

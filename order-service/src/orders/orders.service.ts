@@ -13,24 +13,30 @@ import { Order, OrderStatus } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
+import { OrderEventsPublisher } from '../rabbitmq/order-events.publisher.js';
 
 @Injectable()
 export class OrdersService {
   private catalogUrl: string;
   private artistUrl: string;
   private paymentUrl: string;
+  private userUrl: string;
   private internalServiceToken: string;
+  private appUrl: string;
 
   constructor(
     @InjectRepository(Order) private ordersRepo: Repository<Order>,
     @InjectRepository(OrderItem) private itemsRepo: Repository<OrderItem>,
     private httpService: HttpService,
     private configService: ConfigService,
+    private orderEventsPublisher: OrderEventsPublisher,
   ) {
     this.catalogUrl = this.configService.get<string>('CATALOG_URL', 'http://catalog-service:3003');
     this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
     this.paymentUrl = this.configService.get<string>('PAYMENT_URL', 'http://payment-service:3007');
+    this.userUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3010');
     this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
   }
 
   async create(dto: CreateOrderDto, userId: number): Promise<Order> {
@@ -296,6 +302,51 @@ export class OrdersService {
     } catch (error) {
       console.error(`Failed to emit order.confirmed for order ${order.id}:`, error);
     }
+
+    // Publish notification event (best-effort)
+    void this.publishOrderConfirmedNotification(order);
+  }
+
+  private async publishOrderConfirmedNotification(order: Order): Promise<void> {
+    try {
+      const { data: user } = await firstValueFrom(
+        this.httpService.get(`${this.userUrl}/api/users/internal/${order.user_id}`, {
+          headers: { 'x-service-token': this.internalServiceToken },
+        }),
+      );
+
+      const orderUrl = `${this.appUrl}/account/orders/${order.id}`;
+      const totalCents = Math.round(Number(order.total ?? 0) * 100);
+      const commission = await this.computeCommissionCents(order);
+
+      await this.orderEventsPublisher.publish('order.confirmed', {
+        buyerEmail: user.email as string,
+        orderNumber: String(order.id),
+        items: (order.items ?? []).map((item) => ({
+          name: `Produit #${item.product_id}`,
+          qty: item.quantity,
+          unitPrice: Math.round(Number(item.price) * 100),
+        })),
+        total: totalCents,
+        commissionAmount: commission,
+        orderUrl,
+      });
+    } catch (err) {
+      console.error(`Failed to publish order.confirmed notification for order ${order.id}:`, err);
+    }
+  }
+
+  private async computeCommissionCents(order: Order): Promise<number> {
+    try {
+      const { data: payments } = await firstValueFrom(
+        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`),
+      );
+      const confirmed = (payments as any[]).find((p: any) => p.commission_amount != null);
+      if (confirmed) return Math.round(Number(confirmed.commission_amount) * 100);
+    } catch {
+      // best-effort
+    }
+    return 0;
   }
 
   private async emitOrderCancelled(order: Order): Promise<void> {
