@@ -3,6 +3,16 @@ import { createProxyMiddleware, type RequestHandler } from 'http-proxy-middlewar
 import type { ServiceConfig } from './config';
 import { logger } from './logger';
 
+/** Extract the value of a named cookie from the raw Cookie header. */
+function extractCookie(cookieHeader: string | undefined, name: string): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [k, ...rest] = part.trim().split('=');
+    if (k.trim() === name) return rest.join('=').trim();
+  }
+  return null;
+}
+
 export class ProxyRouter {
   private routes: { prefix: string; handler: RequestHandler<http.IncomingMessage, http.ServerResponse> }[] = [];
 
@@ -15,10 +25,20 @@ export class ProxyRouter {
           changeOrigin: true,
           on: {
             proxyReq: (
-              _proxyReq: http.ClientRequest,
+              proxyReq: http.ClientRequest,
               req: http.IncomingMessage,
             ) => {
               logger.info(`→ ${req.method} ${req.url} -> ${svc.target}`);
+
+              // If there is no Authorization header but the request carries an
+              // accessToken cookie, inject it so every upstream service can use
+              // the standard Bearer strategy without needing cookie-parser.
+              if (!req.headers['authorization']) {
+                const token = extractCookie(req.headers.cookie, 'accessToken');
+                if (token) {
+                  proxyReq.setHeader('Authorization', `Bearer ${token}`);
+                }
+              }
             },
             proxyRes: (proxyRes: http.IncomingMessage) => {
               // Strip upstream CORS headers — the gateway handles CORS centrally.
