@@ -14,11 +14,16 @@ import { ArtistProfile } from './entities/artist-profile.entity.js';
 import { MinioService } from '../minio/minio.service.js';
 import { CreateArtistDto } from './dto/create-artist.dto.js';
 import { UpdateArtistDto } from './dto/update-artist.dto.js';
+import { ArtistEventsPublisher } from '../rabbitmq/artist-events.publisher.js';
 
 export interface UserIdentity {
   id: number;
   firstname: string;
   lastname: string;
+}
+
+interface UserWithEmail extends UserIdentity {
+  email: string;
 }
 
 @Injectable()
@@ -32,6 +37,7 @@ export class ArtistsService {
     @InjectRepository(ArtistProfile) private artistsRepo: Repository<ArtistProfile>,
     private minioService: MinioService,
     private configService: ConfigService,
+    private eventsPublisher: ArtistEventsPublisher,
   ) {
     this.userServiceUrl =
       this.configService.get('USER_SERVICE_URL') || 'http://user-service:3001';
@@ -106,6 +112,22 @@ export class ArtistsService {
       const user = (await res.json()) as any;
       if (!user?.id) return null;
       return { id: user.id, firstname: user.firstname, lastname: user.lastname };
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchUserWithEmail(userId: number): Promise<UserWithEmail | null> {
+    if (!userId) return null;
+    try {
+      const token = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+      const res = await fetch(`${this.userServiceUrl}/api/users/internal/${userId}`, {
+        headers: { 'x-service-token': token },
+      });
+      if (!res.ok) return null;
+      const user = (await res.json()) as any;
+      if (!user?.id || !user?.email) return null;
+      return { id: user.id, email: user.email, firstname: user.firstname, lastname: user.lastname };
     } catch {
       return null;
     }
@@ -231,6 +253,17 @@ export class ArtistsService {
       }
 
       const url = await this.buildStripeOnboardingLink(profile.stripe_account_id);
+
+      // Publish artist.kyc-invited event (best-effort)
+      const user = await this.fetchUserWithEmail(profile.user_id);
+      if (user) {
+        void this.eventsPublisher.publish('artist.kyc-invited', {
+          artistEmail: user.email,
+          artistName: `${user.firstname} ${user.lastname}`,
+          onboardingUrl: url,
+        });
+      }
+
       return { url, stripeAccountId: profile.stripe_account_id };
     } catch (error) {
       this.mapStripeError(error);
@@ -370,6 +403,16 @@ export class ArtistsService {
 
     profile.stripe_onboarded = true;
     await this.artistsRepo.save(profile);
+
+    // Publish artist.kyc-verified event (best-effort)
+    const user = await this.fetchUserWithEmail(profile.user_id);
+    if (user) {
+      void this.eventsPublisher.publish('artist.kyc-verified', {
+        artistEmail: user.email,
+        artistName: `${user.firstname} ${user.lastname}`,
+      });
+    }
+
     return { updated: true, artistId: profile.id };
   }
 
@@ -391,5 +434,22 @@ export class ArtistsService {
 
   async adminGetAll() {
     return this.artistsRepo.find({ relations: ['shops'] });
+  }
+
+  async findByStripeAccountId(
+    stripeAccountId: string,
+  ): Promise<{ id: number; user_id: number; email: string; name: string } | null> {
+    const profile = await this.artistsRepo.findOne({
+      where: { stripe_account_id: stripeAccountId },
+    });
+    if (!profile) return null;
+    const user = await this.fetchUserWithEmail(profile.user_id);
+    if (!user) return null;
+    return {
+      id: profile.id,
+      user_id: profile.user_id,
+      email: user.email,
+      name: `${user.firstname} ${user.lastname}`,
+    };
   }
 }

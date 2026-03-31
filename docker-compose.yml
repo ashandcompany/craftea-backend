@@ -127,10 +127,14 @@ services:
       MINIO_BUCKET: artist-images
       MINIO_USE_SSL: "false"
       MINIO_PUBLIC_URL: http://localhost:9000
+      USER_SERVICE_URL: http://user-service:3010
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
     depends_on:
       db:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   # ───────────── Catalog Service (NestJS) ─────────────
@@ -277,11 +281,14 @@ services:
       JWT_SECRET: craftea_jwt_secret_dev
       ORDER_URL: http://order-service:3005
       ARTIST_URL: http://artist-service:3002
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
     secrets:
       - stripe_secret_key
       - stripe_webhook_secret
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   # ───────────── Notification Service (NestJS) ─────────────

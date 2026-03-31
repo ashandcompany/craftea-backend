@@ -9,11 +9,13 @@ import { PaymentsController } from './payments.controller.js';
 import { StripeService } from './stripe.service.js';
 import { WalletService } from './wallet.service.js';
 import { PaymentsEventsController } from './payments.events.controller.js';
+import { PaymentEventsModule } from '../rabbitmq/payment-events.module.js';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, WalletTransaction, ProcessedWebhookEvent]),
     HttpModule,
+    PaymentEventsModule,
   ],
   controllers: [PaymentsController, PaymentsEventsController],
   providers: [PaymentsService, StripeService, WalletService],

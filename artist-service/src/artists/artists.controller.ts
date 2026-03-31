@@ -70,6 +70,15 @@ export class ArtistsController {
     return this.artistsService.createStripeAccount(req.user.id);
   }
 
+  @Get('internal/by-stripe/:stripeAccountId')
+  internalGetByStripeAccount(
+    @Param('stripeAccountId') stripeAccountId: string,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.findByStripeAccountId(stripeAccountId);
+  }
+
   @Patch('internal/stripe/mark-ready')
   internalMarkStripeReady(
     @Body() body: { stripe_account_id: string },

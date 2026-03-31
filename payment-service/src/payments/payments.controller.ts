@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaymentsService } from './payments.service.js';
@@ -28,6 +29,7 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import { WalletService } from './wallet.service.js';
 import { StripeService } from './stripe.service.js';
 import { ProcessedWebhookEvent } from './entities/processed-webhook-event.entity.js';
+import { PaymentEventsPublisher } from '../rabbitmq/payment-events.publisher.js';
 import type Stripe from 'stripe';
 
 @Controller('payments')
@@ -38,9 +40,29 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly walletService: WalletService,
     private readonly stripeService: StripeService,
+    private readonly configService: ConfigService,
+    private readonly eventsPublisher: PaymentEventsPublisher,
     @InjectRepository(ProcessedWebhookEvent)
     private readonly webhookEventRepo: Repository<ProcessedWebhookEvent>,
   ) {}
+
+  private async fetchArtistByStripeAccount(
+    stripeAccountId: string,
+  ): Promise<{ email: string; name: string } | null> {
+    const artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
+    const token = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    try {
+      const res = await fetch(
+        `${artistUrl}/api/artists/internal/by-stripe/${stripeAccountId}`,
+        { headers: { 'x-service-token': token } },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as any;
+      return data?.email ? { email: data.email, name: data.name ?? '' } : null;
+    } catch {
+      return null;
+    }
+  }
 
   /** Webhook Stripe: confirmation serveur-side signée */
   @Post('webhook')
@@ -96,8 +118,37 @@ export class PaymentsController {
         break;
       }
 
+      case 'payout.paid': {
+        const payout = event.data.object as Stripe.Payout;
+        const stripeAccountId = (event as any).account as string | undefined;
+        if (stripeAccountId) {
+          const artist = await this.fetchArtistByStripeAccount(stripeAccountId);
+          if (artist) {
+            void this.eventsPublisher.publish('payout.succeeded', {
+              artistEmail: artist.email,
+              amount: payout.amount,
+              currency: payout.currency,
+              estimatedDays: 3,
+            });
+          }
+        }
+        break;
+      }
+
       case 'payout.failed': {
         await this.walletService.handlePayoutFailed((event.data as any).object as { id: string });
+        const failedPayout = (event.data as any).object as Stripe.Payout;
+        const failedAccountId = (event as any).account as string | undefined;
+        if (failedAccountId) {
+          const artist = await this.fetchArtistByStripeAccount(failedAccountId);
+          if (artist) {
+            void this.eventsPublisher.publish('payout.failed', {
+              artistEmail: artist.email,
+              amount: failedPayout.amount,
+              currency: failedPayout.currency,
+            });
+          }
+        }
         break;
       }
 

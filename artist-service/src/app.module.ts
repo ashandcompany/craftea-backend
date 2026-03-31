@@ -6,6 +6,7 @@ import { ArtistsModule } from './artists/artists.module.js';
 import { ShopsModule } from './shops/shops.module.js';
 import { MinioModule } from './minio/minio.module.js';
 import { AppController } from './app.controller.js';
+import { ArtistEventsModule } from './rabbitmq/artist-events.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AppController } from './app.controller.js';
         synchronize: true, // dev only
       }),
     }),
+    ArtistEventsModule,
     AuthModule,
     MinioModule,
     ArtistsModule,
