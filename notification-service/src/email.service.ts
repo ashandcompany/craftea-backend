@@ -25,6 +25,9 @@ export class EmailService {
           port: smtpPort,
           secure: false,
           ignoreTLS: true,
+          connectionTimeout: 5000,
+          greetingTimeout: 5000,
+          socketTimeout: 10000,
         });
         this.logger.log(`Email: using SMTP fallback → ${smtpHost}:${smtpPort}`);
       }
@@ -45,7 +48,9 @@ export class EmailService {
 
     if (this.smtpTransport) {
       try {
+        this.logger.log(`Sending SMTP email to ${to}: ${subject}`);
         await this.smtpTransport.sendMail({ from: this.from, to, subject, html });
+        this.logger.log(`SMTP email sent to ${to}`);
       } catch (err) {
         this.logger.error(
           `Failed to send SMTP email to ${to}: ${(err as Error).message}`,
