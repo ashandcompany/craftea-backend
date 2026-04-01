@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module.js';
 import { AddressesModule } from './addresses/addresses.module.js';
 import { LogsModule } from './logs/logs.module.js';
 import { MinioModule } from './minio/minio.module.js';
+import { AppController } from './app.controller.js';
 
 @Module({
   imports: [
@@ -30,5 +31,6 @@ import { MinioModule } from './minio/minio.module.js';
     LogsModule,
     MinioModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
