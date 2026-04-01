@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -17,6 +18,7 @@ import { OrderEventsPublisher } from '../rabbitmq/order-events.publisher.js';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
   private catalogUrl: string;
   private artistUrl: string;
   private paymentUrl: string;
@@ -315,18 +317,41 @@ export class OrdersService {
         }),
       );
 
+      // Enrich items with product details (names, images)
+      const enrichedItems = await Promise.all(
+        (order.items ?? []).map(async (item) => {
+          try {
+            const { data: product } = await firstValueFrom(
+              this.httpService.get(`${this.catalogUrl}/api/products/${item.product_id}`),
+            );
+            return {
+              name: product.name || `Produit #${item.product_id}`,
+              image_url: product.image_url || null,
+              qty: item.quantity,
+              unitPrice: Math.round(Number(item.price) * 100),
+            };
+          } catch (err) {
+            this.logger.warn(`Could not fetch product ${item.product_id}: using fallback name`);
+            return {
+              name: `Produit #${item.product_id}`,
+              image_url: null,
+              qty: item.quantity,
+              unitPrice: Math.round(Number(item.price) * 100),
+            };
+          }
+        }),
+      );
+
       const orderUrl = `${this.appUrl}/account/orders/${order.id}`;
       const totalCents = Math.round(Number(order.total ?? 0) * 100);
+      const shippingTotalCents = Math.round(Number(order.shipping_total ?? 0) * 100);
       const commission = await this.computeCommissionCents(order);
 
       await this.orderEventsPublisher.publish('order.confirmed', {
         buyerEmail: user.email as string,
         orderNumber: String(order.id),
-        items: (order.items ?? []).map((item) => ({
-          name: `Produit #${item.product_id}`,
-          qty: item.quantity,
-          unitPrice: Math.round(Number(item.price) * 100),
-        })),
+        items: enrichedItems,
+        shippingTotal: shippingTotalCents,
         total: totalCents,
         commissionAmount: commission,
         orderUrl,
@@ -339,7 +364,9 @@ export class OrdersService {
   private async computeCommissionCents(order: Order): Promise<number> {
     try {
       const { data: payments } = await firstValueFrom(
-        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`),
+        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`, {
+          headers: { 'x-service-token': this.internalServiceToken },
+        }),
       );
       const confirmed = (payments as any[]).find((p: any) => p.commission_amount != null);
       if (confirmed) return Math.round(Number(confirmed.commission_amount) * 100);
@@ -440,7 +467,9 @@ export class OrdersService {
     // 2. Refund le paiement associé à cette commande
     try {
       const payments = await firstValueFrom(
-        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`),
+        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`, {
+          headers: { 'x-service-token': this.internalServiceToken },
+        }),
       );
 
       const completedPayment = payments.data?.find(
@@ -452,6 +481,7 @@ export class OrdersService {
           this.httpService.post(
             `${this.paymentUrl}/api/payments/${completedPayment.id}/refund`,
             { reason: 'Commande annulée' },
+            { headers: { 'x-service-token': this.internalServiceToken } },
           ),
         );
       }

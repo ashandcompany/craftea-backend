@@ -10,9 +10,10 @@ import { payoutFailedTemplate } from './templates/payout-failed.template.js';
 interface OrderConfirmedPayload {
   buyerEmail: string;
   orderNumber: string;
-  items: { name: string; qty: number; unitPrice: number }[];
+  items: { name: string; image_url?: string | null; qty: number; unitPrice: number }[];
+  shippingTotal?: number;
   total: number;
-  commissionAmount: number;
+  commissionAmount?: number;
   orderUrl: string;
 }
 
@@ -42,6 +43,7 @@ export class NotificationConsumer {
       const html = orderConfirmationTemplate({
         orderNumber: payload.orderNumber,
         items: payload.items,
+        shippingTotal: payload.shippingTotal,
         total: payload.total,
         commissionAmount: payload.commissionAmount,
         orderUrl: payload.orderUrl,

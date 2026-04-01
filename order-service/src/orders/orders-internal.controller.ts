@@ -1,14 +1,17 @@
 import {
   Controller,
   Get,
+  Patch,
   Param,
   ParseIntPipe,
   ForbiddenException,
   Headers,
   NotFoundException,
+  Body,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrdersService } from './orders.service.js';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 
 @Controller('orders/internal')
 export class OrdersInternalController {
@@ -34,5 +37,16 @@ export class OrdersInternalController {
     const order = await this.ordersService.findOneInternal(id);
     if (!order) throw new NotFoundException('Commande introuvable');
     return order;
+  }
+
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderStatusDto,
+    @Headers('x-service-token') serviceToken: string,
+  ) {
+    this.assertInternalToken(serviceToken);
+    // Internal call — bypass user ownership check, allow status transition
+    return this.ordersService.updateStatus(id, dto, { id: 0, role: 'internal' } as any);
   }
 }

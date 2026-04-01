@@ -23,6 +23,7 @@
     "amqp-connection-manager": "^4.1.14",
     "amqplib": "^0.10.5",
     "reflect-metadata": "^0.2.2",
+    "nodemailer": "^6.10.1",
     "resend": "^4.5.1",
     "rxjs": "^7.8.1"
   },
@@ -32,6 +33,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@types/amqplib": "^0.10.5",
     "@types/amqp-connection-manager": "^2.0.5",
+    "@types/nodemailer": "^6.4.17",
     "@types/node": "^22.10.7",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",

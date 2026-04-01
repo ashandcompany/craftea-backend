@@ -90,7 +90,9 @@ services:
       MINIO_USE_SSL: "false"
       MINIO_PUBLIC_URL: http://localhost:9000
       RESEND_API_KEY: placeholder
-      EMAIL_FROM: noreply@localhost
+      EMAIL_FROM: noreply@craftea.local
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
       APP_URL: http://localhost:3000
       INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
     depends_on:
@@ -307,12 +309,23 @@ services:
     environment:
       PORT: 3008
       RESEND_API_KEY: placeholder
-      EMAIL_FROM: noreply@localhost
+      EMAIL_FROM: noreply@craftea.local
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
       APP_URL: http://localhost:3000
       RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  # ───────────── Mailhog (Dev email catcher) ─────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: craftea-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI → http://localhost:8025
 
   # ───────────── MinIO (Object Storage) ─────────────
   minio:

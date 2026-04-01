@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +21,8 @@ import { resetPasswordTemplate } from '../email/templates/reset-password.templat
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(Log) private logsRepo: Repository<Log>,
@@ -146,6 +149,12 @@ export class AuthService {
     const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
     const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
     const html = resetPasswordTemplate({ resetUrl });
+
+    // In development (no real Resend key), log the URL so it can be tested directly
+    const resendKey = this.configService.get<string>('RESEND_API_KEY', 'placeholder');
+    if (!resendKey || resendKey === 'placeholder') {
+      this.logger.log(`[DEV] Lien de réinitialisation pour ${email} :\n  ${resetUrl}`);
+    }
 
     await this.emailService.send(email, 'Réinitialisation de votre mot de passe Craftea', html);
   }

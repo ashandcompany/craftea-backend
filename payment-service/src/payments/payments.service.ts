@@ -322,6 +322,29 @@ export class PaymentsService {
 
     this.applyIntentStatus(payment, intent);
     await this.paymentsRepo.save(payment);
+
+    // ── Auto-confirm order when payment succeeds ────────────────────────
+    if (payment.status === PaymentStatus.COMPLETED && payment.order_id) {
+      try {
+        await firstValueFrom(
+          this.httpService.patch(
+            `${this.orderUrl}/api/orders/internal/${payment.order_id}/status`,
+            { status: 'confirmed' },
+            {
+              headers: {
+                'x-service-token': this.configService.get<string>('INTERNAL_SERVICE_TOKEN', ''),
+              },
+            },
+          ),
+        );
+        this.logger.debug(`Order ${payment.order_id} auto-confirmed via payment webhook`);
+      } catch (err) {
+        this.logger.error(
+          `Failed to auto-confirm order ${payment.order_id} after successful payment: ${err}`,
+        );
+      }
+    }
+
     return payment;
   }
 

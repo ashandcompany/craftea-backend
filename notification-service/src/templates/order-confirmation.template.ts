@@ -1,21 +1,29 @@
 export interface OrderConfirmationParams {
   orderNumber: string;
-  items: { name: string; qty: number; unitPrice: number }[];
+  items: { name: string; image_url?: string | null; qty: number; unitPrice: number }[];
+  shippingTotal?: number;
   total: number;
-  commissionAmount: number;
+  commissionAmount?: number;
   orderUrl: string;
 }
 
 export function orderConfirmationTemplate(p: OrderConfirmationParams): string {
   const rows = p.items
-    .map(
-      (item) => `
+    .map((item) => {
+      const imageHtml = item.image_url
+        ? `<img src="${item.image_url}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 12px;" />`
+        : '';
+      
+      return `
        <tr>
-        <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); color: var(--stone-700); font-size: 14px;">${item.name}</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); display: flex; align-items: center;">
+          ${imageHtml}
+          <span style="color: var(--stone-700); font-size: 14px;">${item.name}</span>
+        </td>
         <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); text-align: center; color: var(--stone-600); font-size: 14px;">${item.qty}</td>
         <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); text-align: right; color: var(--stone-700); font-size: 14px; font-weight: 500;">${(item.unitPrice / 100).toFixed(2)} €</td>
-       </tr>`,
-    )
+       </tr>`;
+    })
     .join('');
 
   return `<!DOCTYPE html>
@@ -117,8 +125,8 @@ export function orderConfirmationTemplate(p: OrderConfirmationParams): string {
               <div style="margin-bottom: 32px; background: var(--sage-50); padding: 20px; border: 1px solid var(--stone-200);">
                 <table width="100%" cellpadding="0" cellspacing="0">
                   <tr>
-                    <td style="padding: 8px 0; color: var(--stone-600); font-size: 14px;">Frais de port</td>
-                    <td style="padding: 8px 0; color: var(--stone-600); font-size: 14px; text-align: right;">${(p.commissionAmount / 100).toFixed(2)} €</td>
+                    <td style="padding: 8px 0; color: var(--stone-600); font-size: 14px;">Frais de port payés</td>
+                    <td style="padding: 8px 0; color: var(--stone-600); font-size: 14px; text-align: right;">${((p.shippingTotal ?? 0) / 100).toFixed(2)} €</td>
                   </tr>
                   <tr>
                     <td style="padding: 12px 0 0 0; color: var(--stone-800); font-size: 16px; font-weight: 700; border-top: 2px solid var(--stone-300);">Total</td>
