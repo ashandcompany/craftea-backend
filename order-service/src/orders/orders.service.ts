@@ -20,6 +20,7 @@ import { OrderEventsPublisher } from '../rabbitmq/order-events.publisher.js';
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
   private catalogUrl: string;
+  private catalogPublicUrl: string;
   private artistUrl: string;
   private paymentUrl: string;
   private userUrl: string;
@@ -39,6 +40,7 @@ export class OrdersService {
     this.userUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3010');
     this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
     this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
+    this.catalogPublicUrl = this.configService.get<string>('CATALOG_PUBLIC_URL', 'http://localhost:3003');
   }
 
   async create(dto: CreateOrderDto, userId: number): Promise<Order> {
@@ -324,9 +326,12 @@ export class OrdersService {
             const { data: product } = await firstValueFrom(
               this.httpService.get(`${this.catalogUrl}/api/products/${item.product_id}`),
             );
+            const firstImage = Array.isArray(product.images) && product.images.length > 0
+              ? `${this.catalogPublicUrl}/api/images/${product.images[0].image_url}`
+              : null;
             return {
-              name: product.name || `Produit #${item.product_id}`,
-              image_url: product.image_url || null,
+              name: product.title || `Produit #${item.product_id}`,
+              image_url: firstImage,
               qty: item.quantity,
               unitPrice: Math.round(Number(item.price) * 100),
             };
