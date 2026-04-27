@@ -56,8 +56,17 @@ export class ProxyRouter {
             ) => {
               logger.error(`Proxy error for ${req.url}: ${err.message}`);
               if (res && 'writeHead' in res) {
-                (res as http.ServerResponse).writeHead(502, { 'Content-Type': 'application/json' });
-                (res as http.ServerResponse).end(JSON.stringify({ error: 'Bad Gateway', message: err.message }));
+                const httpRes = res as http.ServerResponse;
+                if (!httpRes.headersSent) {
+                  httpRes.writeHead(502, {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Credentials': 'true',
+                  });
+                  httpRes.end(JSON.stringify({ error: 'Bad Gateway', message: err.message }));
+                } else {
+                  httpRes.end();
+                }
               }
             },
           },

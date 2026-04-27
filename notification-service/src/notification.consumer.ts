@@ -6,6 +6,9 @@ import { stripeKycInviteTemplate } from './templates/stripe-kyc-invite.template.
 import { stripeKycConfirmedTemplate } from './templates/stripe-kyc-confirmed.template.js';
 import { payoutSentTemplate } from './templates/payout-sent.template.js';
 import { payoutFailedTemplate } from './templates/payout-failed.template.js';
+import { artistVerificationSubmittedTemplate } from './templates/artist-verification-submitted.template.js';
+import { artistVerificationApprovedTemplate } from './templates/artist-verification-approved.template.js';
+import { artistVerificationRejectedTemplate } from './templates/artist-verification-rejected.template.js';
 
 interface OrderConfirmedPayload {
   buyerEmail: string;
@@ -105,6 +108,56 @@ export class NotificationConsumer {
       await this.email.send(payload.artistEmail, 'Échec de votre virement Craftea', html);
     } catch (err) {
       this.logger.error(`[payout.failed] handler error: ${(err as Error).message}`);
+    }
+  }
+
+  @EventPattern('artist.verification-submitted')
+  async handleArtistVerificationSubmitted(
+    @Payload() payload: { artistName: string; artistEmail: string; artistId: number },
+  ) {
+    this.logger.log(`[artist.verification-submitted] artist=${payload.artistName} id=${payload.artistId}`);
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) {
+      this.logger.warn('[artist.verification-submitted] ADMIN_EMAIL not set, skipping notification');
+      return;
+    }
+    try {
+      const html = artistVerificationSubmittedTemplate({
+        artistName: payload.artistName,
+        artistId: payload.artistId,
+      });
+      await this.email.send(adminEmail, `Nouvelle demande de validation : ${payload.artistName}`, html);
+    } catch (err) {
+      this.logger.error(`[artist.verification-submitted] handler error: ${(err as Error).message}`);
+    }
+  }
+
+  @EventPattern('artist.verification-approved')
+  async handleArtistVerificationApproved(
+    @Payload() payload: { artistName: string; artistEmail: string },
+  ) {
+    this.logger.log(`[artist.verification-approved] artist=${payload.artistName} to=${payload.artistEmail}`);
+    try {
+      const html = artistVerificationApprovedTemplate({ artistName: payload.artistName });
+      await this.email.send(payload.artistEmail, 'Votre compte artiste Craftea est validé ✓', html);
+    } catch (err) {
+      this.logger.error(`[artist.verification-approved] handler error: ${(err as Error).message}`);
+    }
+  }
+
+  @EventPattern('artist.verification-rejected')
+  async handleArtistVerificationRejected(
+    @Payload() payload: { artistName: string; artistEmail: string; note?: string | null },
+  ) {
+    this.logger.log(`[artist.verification-rejected] artist=${payload.artistName} to=${payload.artistEmail}`);
+    try {
+      const html = artistVerificationRejectedTemplate({
+        artistName: payload.artistName,
+        note: payload.note,
+      });
+      await this.email.send(payload.artistEmail, 'Votre demande de validation Craftea', html);
+    } catch (err) {
+      this.logger.error(`[artist.verification-rejected] handler error: ${(err as Error).message}`);
     }
   }
 }

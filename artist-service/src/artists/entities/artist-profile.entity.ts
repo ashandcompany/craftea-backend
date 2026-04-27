@@ -31,6 +31,12 @@ export class ArtistProfile {
   @Column({ default: false })
   validated: boolean;
 
+  @Column({ type: 'varchar', length: 20, default: 'none' })
+  validation_status: 'none' | 'pending' | 'approved' | 'rejected';
+
+  @Column({ type: 'text', nullable: true })
+  validation_note: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   stripe_account_id: string | null;
 

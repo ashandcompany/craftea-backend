@@ -14,11 +14,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ArtistsService } from './artists.service.js';
 import { CreateArtistDto } from './dto/create-artist.dto.js';
 import { UpdateArtistDto } from './dto/update-artist.dto.js';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto.js';
+import { SubmitVerificationDto } from './dto/submit-verification.dto.js';
+import { ReviewVerificationDto } from './dto/review-verification.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -154,6 +157,42 @@ export class ArtistsController {
     @UploadedFiles() files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
     return this.artistsService.create(dto, req.user.id, files || {});
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Post('profile/me/verification')
+  @UseInterceptors(FilesInterceptor('files', 5, { storage: memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }))
+  submitVerification(
+    @Request() req,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() dto: SubmitVerificationDto,
+  ) {
+    return this.artistsService.submitVerification(req.user.id, files ?? [], dto.description, dto.names);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Get('profile/me/verification')
+  getMyVerification(@Request() req) {
+    return this.artistsService.getMyVerification(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin/verifications')
+  adminGetPendingVerifications() {
+    return this.artistsService.adminGetPendingVerifications();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Patch('admin/:id/verification')
+  adminReviewVerification(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ReviewVerificationDto,
+  ) {
+    return this.artistsService.adminReviewVerification(id, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
   ServiceUnavailableException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,9 +12,11 @@ import { Repository } from 'typeorm';
 import Stripe from 'stripe';
 import { existsSync, readFileSync } from 'node:fs';
 import { ArtistProfile } from './entities/artist-profile.entity.js';
+import { ArtistVerificationDocument } from './entities/artist-verification-document.entity.js';
 import { MinioService } from '../minio/minio.service.js';
 import { CreateArtistDto } from './dto/create-artist.dto.js';
 import { UpdateArtistDto } from './dto/update-artist.dto.js';
+import { ReviewVerificationDto } from './dto/review-verification.dto.js';
 import { ArtistEventsPublisher } from '../rabbitmq/artist-events.publisher.js';
 
 export interface UserIdentity {
@@ -35,6 +38,8 @@ export class ArtistsService {
 
   constructor(
     @InjectRepository(ArtistProfile) private artistsRepo: Repository<ArtistProfile>,
+    @InjectRepository(ArtistVerificationDocument)
+    private verificationDocsRepo: Repository<ArtistVerificationDocument>,
     private minioService: MinioService,
     private configService: ConfigService,
     private eventsPublisher: ArtistEventsPublisher,
@@ -450,6 +455,169 @@ export class ArtistsService {
       user_id: profile.user_id,
       email: user.email,
       name: `${user.firstname} ${user.lastname}`,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Artist verification workflow
+  // ---------------------------------------------------------------------------
+
+  async submitVerification(
+    userId: number,
+    files: Express.Multer.File[],
+    description?: string,
+    namesJson?: string,
+  ) {
+    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+    if (profile.validation_status === 'approved') {
+      throw new ConflictException('Votre compte est déjà validé');
+    }
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Au moins un fichier de preuve est requis');
+    }
+
+    // Delete previous documents if re-submitting after rejection
+    if (profile.validation_status === 'rejected') {
+      const oldDocs = await this.verificationDocsRepo.find({
+        where: { artist_profile_id: profile.id },
+      });
+      for (const doc of oldDocs) {
+        await this.minioService.deleteFile(doc.file_url).catch(() => {});
+      }
+      await this.verificationDocsRepo.delete({ artist_profile_id: profile.id });
+    }
+
+    // Upload and save documents — sequential to avoid MinIO connection exhaustion
+    let namesArr: string[] = [];
+    try { namesArr = namesJson ? (JSON.parse(namesJson) as string[]) : []; } catch { namesArr = []; }
+    const savedDocs: ArtistVerificationDocument[] = [];
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const file_url = await this.minioService.uploadFile(file);
+        const doc = this.verificationDocsRepo.create({
+          artist_profile_id: profile.id,
+          file_url,
+          name: (namesArr[i] ?? '').trim() || null,
+          description: description ?? null,
+        });
+        savedDocs.push(await this.verificationDocsRepo.save(doc));
+      }
+    } catch (err: unknown) {
+      // Clean up already-uploaded files on partial failure
+      for (const doc of savedDocs) {
+        await this.minioService.deleteFile(doc.file_url).catch(() => {});
+      }
+      if (savedDocs.length > 0) {
+        await this.verificationDocsRepo
+          .delete(savedDocs.map((d) => d.id))
+          .catch(() => {});
+      }
+      const nodeErr = err as NodeJS.ErrnoException;
+      if (
+        nodeErr.code === 'EPIPE' ||
+        nodeErr.code === 'ECONNRESET' ||
+        nodeErr.code === 'ECONNREFUSED' ||
+        nodeErr.code === 'ETIMEDOUT'
+      ) {
+        throw new ServiceUnavailableException(
+          'Le service de stockage de fichiers est temporairement indisponible. Réessayez dans quelques instants.',
+        );
+      }
+      throw new InternalServerErrorException(
+        'Une erreur est survenue lors de l\'upload des fichiers.',
+      );
+    }
+
+    profile.validation_status = 'pending';
+    profile.validation_note = null;
+    await this.artistsRepo.save(profile);
+
+    // Notify admin via RabbitMQ (best-effort)
+    const user = await this.fetchUserWithEmail(profile.user_id);
+    if (user) {
+      void this.eventsPublisher.publish('artist.verification-submitted', {
+        artistName: `${user.firstname} ${user.lastname}`,
+        artistEmail: user.email,
+        artistId: profile.id,
+      });
+    }
+
+    return { validation_status: profile.validation_status, documents: savedDocs };
+  }
+
+  async getMyVerification(userId: number) {
+    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+
+    const documents = await this.verificationDocsRepo.find({
+      where: { artist_profile_id: profile.id },
+      order: { created_at: 'DESC' },
+    });
+
+    return {
+      validation_status: profile.validation_status,
+      validation_note: profile.validation_note,
+      documents,
+    };
+  }
+
+  async adminGetPendingVerifications() {
+    const profiles = await this.artistsRepo.find({
+      where: { validation_status: 'pending' },
+    });
+    return Promise.all(
+      profiles.map(async (p) => ({
+        ...p,
+        user: await this.fetchUser(p.user_id),
+        documents: await this.verificationDocsRepo.find({
+          where: { artist_profile_id: p.id },
+          order: { created_at: 'DESC' },
+        }),
+      })),
+    );
+  }
+
+  async adminReviewVerification(artistId: number, dto: ReviewVerificationDto) {
+    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+    if (profile.validation_status !== 'pending') {
+      throw new ConflictException(
+        'Aucune demande de validation en attente pour cet artiste',
+      );
+    }
+
+    if (dto.action === 'approve') {
+      profile.validation_status = 'approved';
+      profile.validated = true;
+      profile.validation_note = null;
+    } else {
+      profile.validation_status = 'rejected';
+      profile.validated = false;
+      profile.validation_note = dto.note ?? null;
+    }
+    await this.artistsRepo.save(profile);
+
+    const event =
+      dto.action === 'approve'
+        ? 'artist.verification-approved'
+        : 'artist.verification-rejected';
+
+    const user = await this.fetchUserWithEmail(profile.user_id);
+    if (user) {
+      void this.eventsPublisher.publish(event, {
+        artistName: `${user.firstname} ${user.lastname}`,
+        artistEmail: user.email,
+        note: dto.note ?? null,
+      });
+    }
+
+    return {
+      id: profile.id,
+      validated: profile.validated,
+      validation_status: profile.validation_status,
+      validation_note: profile.validation_note,
     };
   }
 }
