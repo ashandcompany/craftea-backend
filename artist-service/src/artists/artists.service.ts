@@ -455,7 +455,13 @@ export class ArtistsService {
   }
 
   async adminGetAll() {
-    return this.artistsRepo.find({ relations: ['shops'] });
+    const profiles = await this.artistsRepo.find({ relations: ['shops'] });
+    return Promise.all(
+      profiles.map(async (p) => ({
+        ...p,
+        user: await this.fetchUser(p.user_id),
+      })),
+    );
   }
 
   async findByStripeAccountId(
