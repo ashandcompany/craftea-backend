@@ -80,8 +80,10 @@ export class ProductsController {
   decrementStock(
     @Param('id', ParseIntPipe) id: number,
     @Body('quantity', ParseIntPipe) quantity: number,
+    @Body('selected_options') selectedOptions?: string,
   ) {
-    return this.productsService.decrementStock(id, quantity);
+    const opts = selectedOptions ? JSON.parse(selectedOptions) : undefined;
+    return this.productsService.decrementStock(id, quantity, opts);
   }
 
   @Patch(':id/toggle-active')

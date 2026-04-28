@@ -76,4 +76,8 @@ export class CreateProductDto {
   @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
   @IsArray()
   tags?: number[];
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  variants?: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }>;
 }

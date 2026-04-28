@@ -76,6 +76,9 @@ export class Product {
   @OneToMany(() => ProductImage, (img) => img.product, { cascade: true })
   images: ProductImage[];
 
+  @Column({ type: 'jsonb', nullable: true })
+  variants: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }> | null;
+
   @ManyToMany(() => Tag, (tag) => tag.products, { cascade: true })
   @JoinTable({
     name: 'product_tags',
