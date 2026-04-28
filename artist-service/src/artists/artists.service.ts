@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import Stripe from 'stripe';
 import { existsSync, readFileSync } from 'node:fs';
 import { ArtistProfile } from './entities/artist-profile.entity.js';
@@ -325,6 +325,23 @@ export class ArtistsService {
     const profile = await this.artistsRepo.findOne({ where: { id } });
     if (!profile) throw new NotFoundException('Profil artiste introuvable');
     profile.validated = !profile.validated;
+    // Keep validation_status in sync with the validated flag
+    if (!profile.validated) {
+      profile.validation_status = 'none';
+      profile.validation_note = null;
+      // Delete uploaded verification documents from MinIO and DB
+      const oldDocs = await this.verificationDocsRepo.find({
+        where: { artist_profile_id: profile.id },
+      });
+      for (const doc of oldDocs) {
+        await this.minioService.deleteFile(doc.file_url).catch(() => {});
+      }
+      if (oldDocs.length > 0) {
+        await this.verificationDocsRepo.delete({ artist_profile_id: profile.id });
+      }
+    } else {
+      profile.validation_status = 'approved';
+    }
     await this.artistsRepo.save(profile);
     return { id: profile.id, validated: profile.validated };
   }
@@ -565,7 +582,8 @@ export class ArtistsService {
 
   async adminGetPendingVerifications() {
     const profiles = await this.artistsRepo.find({
-      where: { validation_status: 'pending' },
+      where: { validation_status: Not('none') },
+      order: { updated_at: 'DESC' },
     });
     return Promise.all(
       profiles.map(async (p) => ({
