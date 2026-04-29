@@ -18,9 +18,10 @@ const { Client } = pg;
 
 // == Connexions ==============================================================
 const DB_BASE = { host: 'db', port: 5432, user: 'craftea', password: 'craftea_pass' };
-const usersDb   = new Client({ ...DB_BASE, database: 'craftea_users' });
-const artistsDb = new Client({ ...DB_BASE, database: 'craftea_artists' });
-const catalogDb = new Client({ ...DB_BASE, database: 'craftea_catalog' });
+const usersDb        = new Client({ ...DB_BASE, database: 'craftea_users' });
+const artistsDb      = new Client({ ...DB_BASE, database: 'craftea_artists' });
+const catalogDb      = new Client({ ...DB_BASE, database: 'craftea_catalog' });
+const interactionsDb = new Client({ ...DB_BASE, database: 'craftea_interactions' });
 
 // == Helpers =================================================================
 const rand  = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -316,6 +317,108 @@ const TAGS_BY_CATEGORY = {
   papeterie:  ['fait-main', 'cadeau', 'naturel', 'minimaliste', 'artisanal'],
 };
 
+const BUYERS_DATA = [
+  { firstname: 'Sophie',    lastname: 'Arnaud',     email: 'sophie.arnaud@craftea.dev' },
+  { firstname: 'Lucas',     lastname: 'Perrin',     email: 'lucas.perrin@craftea.dev' },
+  { firstname: 'Isabelle',  lastname: 'Collin',     email: 'isabelle.collin@craftea.dev' },
+  { firstname: 'Nathan',    lastname: 'Brunet',     email: 'nathan.brunet@craftea.dev' },
+  { firstname: 'Élise',     lastname: 'Mercier',    email: 'elise.mercier@craftea.dev' },
+  { firstname: 'Théo',      lastname: 'Guerin',     email: 'theo.guerin@craftea.dev' },
+  { firstname: 'Nathalie',  lastname: 'Jacquet',    email: 'nathalie.jacquet@craftea.dev' },
+  { firstname: 'Clément',   lastname: 'Picard',     email: 'clement.picard@craftea.dev' },
+  { firstname: 'Lucie',     lastname: 'Bourgeois',  email: 'lucie.bourgeois@craftea.dev' },
+  { firstname: 'Yann',      lastname: 'Carpentier', email: 'yann.carpentier@craftea.dev' },
+  { firstname: 'Béatrice',  lastname: 'Lemaire',    email: 'beatrice.lemaire@craftea.dev' },
+  { firstname: 'Quentin',   lastname: 'Denis',      email: 'quentin.denis@craftea.dev' },
+];
+
+const REVIEW_COMMENTS = {
+  ceramique: [
+    'Superbe pièce, exactement comme sur les photos. La texture du grès est magnifique.',
+    'Livraison soignée, emballage parfait. La céramique est de très belle qualité.',
+    "J'utilise ce bol chaque matin, il est devenu indispensable. Merci !",
+    "Artisanat remarquable, on sent vraiment le travail à la main. Je recommande.",
+    "La pièce est encore plus belle en vrai. L'émail est sublime.",
+    'Parfait pour un cadeau, ma mère a adoré. Très beau travail.',
+    'Qualité exceptionnelle, la cuisson est parfaite. Bravo à l\'artiste !',
+    'Troisième commande chez cet artiste, toujours aussi satisfaite.',
+    'Le rendu de l\'émail est bluffant. Une vraie pièce de collection.',
+    'Rapport qualité/prix imbattable pour de l\'artisanat de cette qualité.',
+  ],
+  poster: [
+    "L'affiche est encore plus belle que sur l'écran. Les couleurs sont fidèles.",
+    'Impression de qualité, le papier est épais et le rendu est net. Très satisfait.',
+    'Encadré et accroché, il habille parfaitement mon salon. Merci !',
+    'Emballage sécurisé, pas un pli à la réception. Commande parfaite.',
+    'Le minimalisme de cette affiche est exactement ce que je cherchais.',
+    'Tirage limité et numéroté, c\'est un vrai plus. Belle pièce.',
+    'Cadeau apprécié, mes amis ont tous voulu savoir où je l\'avais trouvé.',
+    'La qualité d\'impression est au rendez-vous. Couleurs vives et papier solide.',
+    'Très beau travail graphique, l\'affiche apporte du caractère à la pièce.',
+    'Deuxième commande, toujours aussi satisfait de la qualité.',
+  ],
+  bijoux: [
+    'Bijou magnifique, exactement comme décrit. Je l\'adore !',
+    'Très belle finition, le métal est solide et la pierre est superbe.',
+    'Je le porte tous les jours depuis la réception, parfait en termes de confort.',
+    'Emballage cadeau soigné, idéal pour offrir. Très beau bijou.',
+    'La qualité de l\'argent est irréprochable. Beau travail artisanal.',
+    'Exactement comme sur les photos, voire encore plus beau en vrai.',
+    'J\'ai reçu beaucoup de compliments, tout le monde me demande d\'où il vient !',
+    'Quatrième achat chez cet artiste, fidèle au poste. Toujours au top.',
+    'La pierre est magnifique, bien sertie. Un vrai bijou fait main.',
+    'Léger et confortable à porter, je suis ravie de mon achat.',
+  ],
+  vetements: [
+    'Le tissu est doux et de bonne qualité. La coupe est parfaite.',
+    'Conforme à la description, la finition est soignée. Je recommande.',
+    'Je l\'ai lavé plusieurs fois, il ne perd pas sa forme. Top qualité.',
+    'La sérigraphie est bien accrochée, même après plusieurs lavages.',
+    'Très beau vêtement artisanal, on sent que c\'est fait avec soin.',
+    'Taille conforme au guide, livraison rapide. Très contente.',
+    'Le lin est magnifique, il tombe très bien. J\'en recommanderai.',
+    'Superbe pull, la laine est douce et chaude sans piquer.',
+    'Belle pièce intemporelle qui s\'associe avec tout dans mon dressing.',
+    'Artisanat de qualité, on voit clairement le soin apporté à chaque pièce.',
+  ],
+  decoration: [
+    'Très bel objet décoratif, il apporte exactement l\'ambiance que je voulais.',
+    'La qualité des matériaux est excellente. Un vrai bel objet.',
+    'Livré avec soin, rien n\'a bougé pendant le transport. Parfait.',
+    'Le rendu dans ma pièce est exactement ce que j\'espérais.',
+    'Objet unique et original, j\'adore avoir quelque chose de vraiment artisanal chez moi.',
+    'La bougie sent merveilleusement bon et la flamme est stable. Bravo.',
+    'Le macramé est encore plus grand et travaillé que sur la photo.',
+    'Belle pièce sobre et élégante qui s\'intègre parfaitement dans mon intérieur.',
+    'Je suis bluffée par la qualité du bois et le soin apporté aux détails.',
+    'Cadeau très apprécié, tout le monde a remarqué l\'objet chez moi.',
+  ],
+  art: [
+    'Œuvre encore plus saisissante en vrai. Les couleurs sont vibrantes.',
+    'Emballage professionnel avec coin renforcé. L\'œuvre est arrivée parfaite.',
+    'Accrochée dans mon bureau, elle attire tous les regards. Magnifique.',
+    'L\'artiste a une vraie sensibilité, on ressent l\'émotion dans chaque trait.',
+    'Certificat d\'authenticité inclus, c\'est un vrai plus pour une pièce unique.',
+    'Belle qualité du papier et de l\'encre, l\'estampe est d\'une grande finesse.',
+    'Je cherchais une œuvre originale depuis longtemps, je suis comblée.',
+    'Technique maîtrisée et résultat bluffant. Je recommande cet artiste.',
+    'L\'aquarelle est lumineuse et délicate à la fois. Un vrai coup de cœur.',
+    'Pièce encadrée et accrochée, elle transforme complètement la pièce.',
+  ],
+  papeterie: [
+    'Le carnet est solide et très bien relié. J\'adore l\'utiliser chaque jour.',
+    'Les illustrations sont mignonnes et la qualité du papier est top.',
+    'Les stickers tiennent bien, ils ne se décollent pas facilement. Parfait.',
+    'Cadeau idéal pour les amateurs de papeterie. Ma collègue a adoré.',
+    'Le papier est épais et agréable à écrire dessus. Très satisfaite.',
+    'L\'agenda est pratique et beau à la fois. Je l\'emporte partout.',
+    'Travail soigné, les illustrations sont fines et détaillées.',
+    'Emballage cadeau soigné, même les enveloppes sont jolies.',
+    'J\'ai offert le set de cartes, elles ont eu un grand succès. À recommander.',
+    'Rapport qualité/prix excellent pour de la papeterie artisanale.',
+  ],
+};
+
 const LOCATIONS = [
   'Paris', 'Lyon', 'Marseille', 'Bordeaux', 'Toulouse', 'Strasbourg',
   'Nantes', 'Lille', 'Rennes', 'Montpellier', 'Nice', 'Grenoble',
@@ -328,7 +431,8 @@ const LOCATIONS = [
 
 async function main() {
   console.log('ðŸŒ± Connexion aux bases de données...');
-  await Promise.all([usersDb.connect(), artistsDb.connect(), catalogDb.connect()]);
+  await Promise.all([usersDb.connect(), artistsDb.connect(), catalogDb.connect(), interactionsDb.connect()]);
+  console.log('✅ Connecté\n');
   console.log('âœ… Connecté\n');
 
   try {
@@ -554,15 +658,80 @@ async function main() {
     }
     console.log(`   â†’ ${tagAssocCount} associations tag-produit\n`);
 
+    // == 8. BUYERS ============================================================
+    console.log('-- Insertion des acheteurs...');
+    const buyerIds = [];
+    for (const b of BUYERS_DATA) {
+      const existing = await usersDb.query(`SELECT id FROM users WHERE email = $1`, [b.email]);
+      if (existing.rows.length > 0) {
+        buyerIds.push(existing.rows[0].id);
+        process.stdout.write('.');
+        continue;
+      }
+      const res = await usersDb.query(
+        `INSERT INTO users (role, firstname, lastname, email, password, is_active)
+         VALUES ('buyer', $1, $2, $3, $4, true)
+         RETURNING id`,
+        [b.firstname, b.lastname, b.email, PASSWORD_HASH]
+      );
+      buyerIds.push(res.rows[0].id);
+      process.stdout.write('+');
+    }
+    console.log(`\n   â†' ${buyerIds.length} acheteurs\n`);
+
+    // == 9. REVIEWS ===========================================================
+    console.log('â­ Insertion des avis...');
+    let reviewCount = 0;
+    const ratingWeights = [3, 3, 4, 4, 4, 5, 5, 5, 5, 5];
+    const reviewedPairs = new Set();
+    const shuffledProducts = [...productIds].sort(() => Math.random() - 0.5);
+
+    for (const { productId, specialty } of shuffledProducts) {
+      // ~70% of products get at least one review
+      if (Math.random() > 0.70) continue;
+      const comments = REVIEW_COMMENTS[specialty] || REVIEW_COMMENTS.ceramique;
+      const numReviews = range(1, Math.min(5, buyerIds.length));
+      const shuffledBuyers = [...buyerIds].sort(() => Math.random() - 0.5);
+
+      for (let i = 0; i < numReviews; i++) {
+        const userId = shuffledBuyers[i];
+        const pairKey = `${userId}:${productId}`;
+        if (reviewedPairs.has(pairKey)) continue;
+
+        const existing = await interactionsDb.query(
+          `SELECT id FROM reviews WHERE user_id = $1 AND product_id = $2`,
+          [userId, productId]
+        );
+        if (existing.rows.length > 0) {
+          reviewedPairs.add(pairKey);
+          continue;
+        }
+
+        const rating = ratingWeights[Math.floor(Math.random() * ratingWeights.length)];
+        const comment = Math.random() > 0.15 ? rand(comments) : null;
+
+        await interactionsDb.query(
+          `INSERT INTO reviews (user_id, product_id, rating, comment) VALUES ($1, $2, $3, $4)`,
+          [userId, productId, rating, comment]
+        );
+        reviewedPairs.add(pairKey);
+        reviewCount++;
+        process.stdout.write('+');
+      }
+    }
+    console.log(`\n   â†' ${reviewCount} avis\n`);
+
     console.log('ðŸŽ‰ Seed terminé avec succès !');
     console.log(`   Utilisateurs : ${insertedUsers.length}`);
     console.log(`   Profils artistes : ${insertedProfiles.length}`);
     console.log(`   Boutiques : ${insertedShops.length}`);
     console.log(`   Produits : ${productCount}`);
     console.log(`   Tags : ${Object.keys(tagIds).length}`);
+    console.log(`   Acheteurs : ${buyerIds.length}`);
+    console.log(`   Avis : ${reviewCount}`);
 
   } finally {
-    await Promise.all([usersDb.end(), artistsDb.end(), catalogDb.end()]);
+    await Promise.all([usersDb.end(), artistsDb.end(), catalogDb.end(), interactionsDb.end()]);
   }
 }
 
