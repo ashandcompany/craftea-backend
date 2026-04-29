@@ -202,9 +202,18 @@ services:
       DB_USER: craftea
       DB_PASS: craftea_pass
       JWT_SECRET: craftea_jwt_secret_dev
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: craftea_minio_secret
+      MINIO_BUCKET: review-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localhost:9000
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
 
   # ───────────── Order Service (NestJS) ─────────────
   order-service:

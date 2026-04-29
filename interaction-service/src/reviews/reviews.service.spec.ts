@@ -11,10 +11,13 @@ import {
 import { Repository, DataSource } from 'typeorm';
 import { ReviewsService } from './reviews.service';
 import { Review } from './entities/review.entity';
+import { ReviewImage } from './entities/review-image.entity';
+import { MinioService } from '../minio/minio.service';
 
 describe('ReviewsService', () => {
   let service: ReviewsService;
   let reviewsRepo: jest.Mocked<Repository<Review>>;
+  let reviewImagesRepo: jest.Mocked<Repository<ReviewImage>>;
   let dataSource: jest.Mocked<DataSource>;
 
   const mockReview: Review = {
@@ -23,6 +26,7 @@ describe('ReviewsService', () => {
     product_id: 42,
     rating: 4,
     comment: 'Very nice product, I love it!',
+    images: [],
     created_at: new Date('2025-01-01'),
   };
 
@@ -42,6 +46,22 @@ describe('ReviewsService', () => {
           },
         },
         {
+          provide: getRepositoryToken(ReviewImage),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            save: jest.fn().mockResolvedValue([]),
+            delete: jest.fn().mockResolvedValue({}),
+            create: jest.fn((x) => x),
+          },
+        },
+        {
+          provide: MinioService,
+          useValue: {
+            uploadFile: jest.fn().mockResolvedValue('test-image.jpg'),
+            deleteFile: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: DataSource,
           useValue: {
             query: jest.fn(),
@@ -52,6 +72,7 @@ describe('ReviewsService', () => {
 
     service = module.get<ReviewsService>(ReviewsService);
     reviewsRepo = module.get(getRepositoryToken(Review)) as jest.Mocked<Repository<Review>>;
+    reviewImagesRepo = module.get(getRepositoryToken(ReviewImage)) as jest.Mocked<Repository<ReviewImage>>;
     dataSource = module.get(DataSource) as jest.Mocked<DataSource>;
   });
 
@@ -65,6 +86,8 @@ describe('ReviewsService', () => {
       reviewsRepo.findOne.mockResolvedValueOnce(null);
       reviewsRepo.create.mockReturnValue(mockReview);
       reviewsRepo.save.mockResolvedValue(mockReview);
+      // Final findOne to return saved review
+      reviewsRepo.findOne.mockResolvedValueOnce(mockReview);
 
       const result = await service.create(100, dto);
 
@@ -105,11 +128,12 @@ describe('ReviewsService', () => {
     });
 
     it('should allow creating a review without comment', async () => {
-      const noCommentReview = { ...mockReview, comment: undefined };
+      const noCommentReview: Review = { ...mockReview, comment: null as any };
       reviewsRepo.findOne.mockResolvedValueOnce(null);
       reviewsRepo.findOne.mockResolvedValueOnce(null);
-      reviewsRepo.create.mockReturnValue(noCommentReview as Review);
-      reviewsRepo.save.mockResolvedValue(noCommentReview as Review);
+      reviewsRepo.create.mockReturnValue(noCommentReview);
+      reviewsRepo.save.mockResolvedValue(noCommentReview);
+      reviewsRepo.findOne.mockResolvedValueOnce(noCommentReview);
 
       const result = await service.create(100, { product_id: 42, rating: 5 });
 
@@ -180,23 +204,25 @@ describe('ReviewsService', () => {
   describe('update', () => {
     it('should update a review by its owner', async () => {
       const updatedReview = { ...mockReview, rating: 5 };
-      reviewsRepo.findOne.mockResolvedValue(mockReview);
+      reviewsRepo.findOne.mockResolvedValueOnce(mockReview);
       reviewsRepo.save.mockResolvedValue(updatedReview);
+      reviewsRepo.findOne.mockResolvedValueOnce(updatedReview);
 
       const result = await service.update(1, 100, 'user', { rating: 5 });
 
       expect(reviewsRepo.save).toHaveBeenCalled();
-      expect(result.rating).toBe(5);
+      expect(result!.rating).toBe(5);
     });
 
     it('should allow admin to update any review', async () => {
       const updatedReview = { ...mockReview, rating: 2 };
-      reviewsRepo.findOne.mockResolvedValue(mockReview);
+      reviewsRepo.findOne.mockResolvedValueOnce(mockReview);
       reviewsRepo.save.mockResolvedValue(updatedReview);
+      reviewsRepo.findOne.mockResolvedValueOnce(updatedReview);
 
       const result = await service.update(1, 999, 'admin', { rating: 2 });
 
-      expect(result.rating).toBe(2);
+      expect(result!.rating).toBe(2);
     });
 
     it('should throw NotFoundException if review does not exist', async () => {

@@ -8,10 +8,14 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
   Request,
   ParseIntPipe,
   DefaultValuePipe,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { ReviewsService } from './reviews.service.js';
 import { CreateReviewDto } from './dto/create-review.dto.js';
@@ -51,18 +55,25 @@ export class ReviewsController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Request() req: any, @Body() dto: CreateReviewDto) {
-    return this.reviewsService.create(req.user.id, dto);
+  @UseInterceptors(FilesInterceptor('images', 5, { storage: memoryStorage() }))
+  create(
+    @Request() req: any,
+    @Body() dto: CreateReviewDto,
+    @UploadedFiles() files: Express.Multer.File[] = [],
+  ) {
+    return this.reviewsService.create(req.user.id, dto, files);
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FilesInterceptor('images', 5, { storage: memoryStorage() }))
   update(
     @Param('id', ParseIntPipe) id: number,
     @Request() req: any,
     @Body() dto: UpdateReviewDto,
+    @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
-    return this.reviewsService.update(id, req.user.id, req.user.role, dto);
+    return this.reviewsService.update(id, req.user.id, req.user.role, dto, files);
   }
 
   @Delete(':id')

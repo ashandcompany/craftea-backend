@@ -12,16 +12,22 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Review } from './entities/review.entity.js';
+import { ReviewImage } from './entities/review-image.entity.js';
+import { MinioService } from '../minio/minio.service.js';
 
 const SPAM_COOLDOWN_MS = 60 * 1000; // 1 minute
+const MAX_IMAGES_PER_REVIEW = 5;
 
 @Injectable()
 export class ReviewsService {
   constructor(
     @InjectRepository(Review)
     private reviewsRepo: Repository<Review>,
+    @InjectRepository(ReviewImage)
+    private reviewImagesRepo: Repository<ReviewImage>,
     @InjectDataSource()
     private dataSource: DataSource,
+    private minioService: MinioService,
   ) {}
 
   // ---- Helper: attach reviewer names from craftea_users DB ----
@@ -31,29 +37,34 @@ export class ReviewsService {
     const userIds = [...new Set(reviews.map((r) => r.user_id).filter(Boolean))];
     if (!userIds.length) return reviews.map((r) => ({ ...r, reviewer_name: null }));
 
-    const users: { id: number; firstname: string; lastname: string }[] =
-      await this.dataSource.query(
-        `SELECT id, firstname, lastname FROM craftea_users.users WHERE id = ANY($1)`,
-        [userIds],
+    try {
+      const users: { id: number; firstname: string; lastname: string }[] =
+        await this.dataSource.query(
+          `SELECT id, firstname, lastname FROM craftea_users.users WHERE id = ANY($1)`,
+          [userIds],
+        );
+
+      const userMap = new Map(
+        users.map((u) => {
+          const lastnameInitial = u.lastname
+            ? `${u.lastname.charAt(0).toUpperCase()}.`
+            : '';
+          const fullName = [u.firstname, lastnameInitial].filter(Boolean).join(' ');
+          return [u.id, fullName || null];
+        }),
       );
 
-    const userMap = new Map(
-      users.map((u) => {
-        const lastnameInitial = u.lastname
-          ? `${u.lastname.charAt(0).toUpperCase()}.`
-          : '';
-        const fullName = [u.firstname, lastnameInitial].filter(Boolean).join(' ');
-        return [u.id, fullName || null];
-      }),
-    );
-
-    return reviews.map((r) => ({
-      ...r,
-      reviewer_name: userMap.get(r.user_id) || null,
-    }));
+      return reviews.map((r) => ({
+        ...r,
+        reviewer_name: userMap.get(r.user_id) || null,
+      }));
+    } catch {
+      // Cross-database queries are not supported in this configuration
+      return reviews.map((r) => ({ ...r, reviewer_name: null }));
+    }
   }
 
-  async create(userId: number, dto: { product_id: number; rating: number; comment?: string }) {
+  async create(userId: number, dto: { product_id: number; rating: number; comment?: string }, files: Express.Multer.File[] = []) {
     // Anti-spam
     const lastReview = await this.reviewsRepo.findOne({
       where: { user_id: userId },
@@ -90,7 +101,20 @@ export class ReviewsService {
       rating: dto.rating,
       comment: dto.comment,
     });
-    return this.reviewsRepo.save(review);
+    await this.reviewsRepo.save(review);
+
+    // Upload images (max 5)
+    const uploads = files.slice(0, MAX_IMAGES_PER_REVIEW);
+    if (uploads.length) {
+      const imgRecords: Partial<ReviewImage>[] = [];
+      for (const file of uploads) {
+        const url = await this.minioService.uploadFile(file);
+        imgRecords.push({ review_id: review.id, image_url: url });
+      }
+      await this.reviewImagesRepo.save(imgRecords.map((r) => this.reviewImagesRepo.create(r)));
+    }
+
+    return this.reviewsRepo.findOne({ where: { id: review.id } });
   }
 
   async getByProduct(productId: number, page = 1, limit = 20) {
@@ -127,6 +151,7 @@ export class ReviewsService {
     userId: number,
     userRole: string,
     dto: { rating?: number; comment?: string },
+    files: Express.Multer.File[] = [],
   ) {
     const review = await this.reviewsRepo.findOne({ where: { id: reviewId } });
     if (!review) {
@@ -137,7 +162,7 @@ export class ReviewsService {
       throw new ForbiddenException('Accès interdit');
     }
 
-    if (dto.rating === undefined && dto.comment === undefined) {
+    if (dto.rating === undefined && dto.comment === undefined && files.length === 0) {
       throw new BadRequestException('Aucune modification fournie');
     }
 
@@ -147,8 +172,26 @@ export class ReviewsService {
 
     if (dto.rating !== undefined) review.rating = dto.rating;
     if (dto.comment !== undefined) review.comment = dto.comment;
+    await this.reviewsRepo.save(review);
 
-    return this.reviewsRepo.save(review);
+    // Replace images if new ones are provided
+    if (files.length) {
+      const existing = await this.reviewImagesRepo.find({ where: { review_id: reviewId } });
+      for (const img of existing) {
+        await this.minioService.deleteFile(img.image_url);
+      }
+      await this.reviewImagesRepo.delete({ review_id: reviewId });
+
+      const uploads = files.slice(0, MAX_IMAGES_PER_REVIEW);
+      const imgRecords: Partial<ReviewImage>[] = [];
+      for (const file of uploads) {
+        const url = await this.minioService.uploadFile(file);
+        imgRecords.push({ review_id: review.id, image_url: url });
+      }
+      await this.reviewImagesRepo.save(imgRecords.map((r) => this.reviewImagesRepo.create(r)));
+    }
+
+    return this.reviewsRepo.findOne({ where: { id: reviewId } });
   }
 
   async remove(reviewId: number, userId: number, userRole: string) {
@@ -159,6 +202,12 @@ export class ReviewsService {
 
     if (review.user_id !== userId && userRole !== 'admin') {
       throw new ForbiddenException('Accès interdit');
+    }
+
+    // Delete images from storage
+    const images = await this.reviewImagesRepo.find({ where: { review_id: reviewId } });
+    for (const img of images) {
+      await this.minioService.deleteFile(img.image_url);
     }
 
     await this.reviewsRepo.remove(review);

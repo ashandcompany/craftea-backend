@@ -16,11 +16,17 @@ import { FavoritesService } from './favorites.service.js';
 import { AddFavoriteDto } from './dto/add-favorite.dto.js';
 
 @Controller('api/favorites')
-@UseGuards(JwtAuthGuard)
 export class FavoritesController {
   constructor(private readonly favoritesService: FavoritesService) {}
 
+  // Public: favorite count for a product
+  @Get('count/:productId')
+  count(@Param('productId', ParseIntPipe) productId: number) {
+    return this.favoritesService.count(productId);
+  }
+
   @Get()
+  @UseGuards(JwtAuthGuard)
   getMyFavorites(
     @Request() req: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -30,6 +36,7 @@ export class FavoritesController {
   }
 
   @Get('check/:productId')
+  @UseGuards(JwtAuthGuard)
   check(
     @Request() req: any,
     @Param('productId', ParseIntPipe) productId: number,
@@ -38,11 +45,13 @@ export class FavoritesController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   add(@Request() req: any, @Body() dto: AddFavoriteDto) {
     return this.favoritesService.add(req.user.id, dto.product_id);
   }
 
   @Delete(':productId')
+  @UseGuards(JwtAuthGuard)
   remove(
     @Request() req: any,
     @Param('productId', ParseIntPipe) productId: number,
