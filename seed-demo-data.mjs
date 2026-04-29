@@ -569,7 +569,46 @@ async function main() {
     }
     console.log(`\n   â†’ ${insertedShops.length} boutiques\n`);
 
-    // == 6. PRODUCTS ==========================================================
+    // == 6. SHIPPING PROFILES =================================================
+    console.log('🚚 Insertion des profils de livraison...');
+    let shippingCount = 0;
+    for (const shop of insertedShops) {
+      // France : toujours présent
+      await artistsDb.query(
+        `INSERT INTO shop_shipping_profiles (shop_id, zone, base_fee, additional_item_fee, free_shipping_threshold)
+         VALUES ($1, 'france', $2, $3, $4)
+         ON CONFLICT (shop_id, zone) DO NOTHING`,
+        [shop.shopId, (range(390, 690) / 100).toFixed(2), (range(50, 150) / 100).toFixed(2), range(0, 1) ? (range(5000, 8000) / 100).toFixed(2) : null]
+      );
+      shippingCount++;
+
+      // Europe : ~60 % des boutiques
+      if (Math.random() < 0.6) {
+        await artistsDb.query(
+          `INSERT INTO shop_shipping_profiles (shop_id, zone, base_fee, additional_item_fee, free_shipping_threshold)
+           VALUES ($1, 'europe', $2, $3, NULL)
+           ON CONFLICT (shop_id, zone) DO NOTHING`,
+          [shop.shopId, (range(790, 1290) / 100).toFixed(2), (range(150, 300) / 100).toFixed(2)]
+        );
+        shippingCount++;
+      }
+
+      // Monde : ~25 % des boutiques
+      if (Math.random() < 0.25) {
+        await artistsDb.query(
+          `INSERT INTO shop_shipping_profiles (shop_id, zone, base_fee, additional_item_fee, free_shipping_threshold)
+           VALUES ($1, 'world', $2, $3, NULL)
+           ON CONFLICT (shop_id, zone) DO NOTHING`,
+          [shop.shopId, (range(1290, 1990) / 100).toFixed(2), (range(200, 400) / 100).toFixed(2)]
+        );
+        shippingCount++;
+      }
+
+      process.stdout.write('+');
+    }
+    console.log(`\n   → ${shippingCount} profils de livraison\n`);
+
+    // == 7. PRODUCTS ==========================================================
     console.log('ðŸ“¦ Insertion des produits...');
     let productCount = 0;
     const productIds = [];
@@ -638,7 +677,7 @@ async function main() {
     }
     console.log(`\n   â†’ ${productCount} produits\n`);
 
-    // == 7. PRODUCT TAGS ======================================================
+    // == 8. PRODUCT TAGS ======================================================
     console.log('ðŸ·ï¸  Association des tags aux produits...');
     let tagAssocCount = 0;
     for (const { productId, specialty } of productIds) {
@@ -658,7 +697,7 @@ async function main() {
     }
     console.log(`   â†’ ${tagAssocCount} associations tag-produit\n`);
 
-    // == 8. BUYERS ============================================================
+    // == 9. BUYERS ============================================================
     console.log('-- Insertion des acheteurs...');
     const buyerIds = [];
     for (const b of BUYERS_DATA) {
@@ -679,7 +718,7 @@ async function main() {
     }
     console.log(`\n   â†' ${buyerIds.length} acheteurs\n`);
 
-    // == 9. REVIEWS ===========================================================
+    // == 10. REVIEWS ===========================================================
     console.log('â­ Insertion des avis...');
     let reviewCount = 0;
     const ratingWeights = [3, 3, 4, 4, 4, 5, 5, 5, 5, 5];
