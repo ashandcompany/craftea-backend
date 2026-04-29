@@ -101,4 +101,17 @@ export class UsersService {
     user.avatar_url = await this.minioService.uploadFile(file);
     return this.usersRepo.save(user);
   }
+
+  async selfDeactivate(userId: number): Promise<void> {
+    await this.usersRepo.update(userId, { is_active: false });
+
+    await this.logsRepo.save(
+      this.logsRepo.create({
+        user_id: userId,
+        action: 'deactivate_user',
+        entity: 'user',
+        entity_id: userId,
+      }),
+    );
+  }
 }

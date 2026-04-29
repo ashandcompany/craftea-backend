@@ -8,6 +8,7 @@ import {
   Response,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException,
   HttpCode,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,7 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import type { Response as ExpressResponse, Request as ExpressRequest } from 'express';
 
@@ -102,6 +104,17 @@ export class AuthController {
   @HttpCode(200)
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { ok: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  @HttpCode(200)
+  async changePassword(@Body() dto: ChangePasswordDto, @Request() req) {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('Les mots de passe ne correspondent pas');
+    }
+    await this.authService.changePassword(req.user.id, dto.currentPassword, dto.newPassword);
     return { ok: true };
   }
 }

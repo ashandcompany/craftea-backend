@@ -13,6 +13,7 @@ import {
   ForbiddenException,
   Headers,
   NotFoundException,
+  HttpCode,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
@@ -74,6 +75,14 @@ export class UsersController {
   @Patch(':id/toggle-active')
   toggleActive(@Param('id', ParseIntPipe) id: number, @Request() req) {
     return this.usersService.toggleActive(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('deactivate-self')
+  @HttpCode(200)
+  async deactivateSelf(@Request() req) {
+    await this.usersService.selfDeactivate(req.user.id);
+    return { ok: true };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

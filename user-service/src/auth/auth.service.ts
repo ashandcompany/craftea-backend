@@ -180,4 +180,33 @@ export class AuthService {
       reset_password_expires: null,
     });
   }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.usersRepo
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+
+    if (!user) throw new UnauthorizedException('Utilisateur introuvable');
+
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) throw new UnauthorizedException('Mot de passe actuel incorrect');
+
+    if (newPassword.length < 8) {
+      throw new BadRequestException('Le nouveau mot de passe doit contenir au moins 8 caractères');
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.usersRepo.update(userId, { password: hash });
+
+    await this.logsRepo.save(
+      this.logsRepo.create({
+        user_id: userId,
+        action: 'change_password',
+        entity: 'user',
+        entity_id: userId,
+      }),
+    );
+  }
 }
