@@ -95,6 +95,8 @@ services:
       SMTP_PORT: 1025
       APP_URL: http://localhost:3000
       INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
+      GOOGLE_CLIENT_ID: your_google_client_id.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: your_google_client_secret
     depends_on:
       db:
         condition: service_healthy

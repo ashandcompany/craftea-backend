@@ -12,6 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { User, UserRole } from '../users/entities/user.entity.js';
 import { Log } from '../logs/entities/log.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -22,6 +23,7 @@ import { resetPasswordTemplate } from '../email/templates/reset-password.templat
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private googleClient: OAuth2Client;
 
   constructor(
     @InjectRepository(User) private usersRepo: Repository<User>,
@@ -29,7 +31,12 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
-  ) {}
+  ) {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    if (clientId) {
+      this.googleClient = new OAuth2Client(clientId);
+    }
+  }
 
   private generateAccessToken(user: User) {
     return this.jwtService.sign(
@@ -208,5 +215,79 @@ export class AuthService {
         entity_id: userId,
       }),
     );
+  }
+
+  async loginWithGoogle(credential: string) {
+    if (!this.googleClient) {
+      throw new BadRequestException('Google OAuth non configuré');
+    }
+
+    try {
+      // Verify the Google token
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: credential,
+        audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        throw new UnauthorizedException('Token Google invalide');
+      }
+
+      const { email, given_name, family_name, picture } = payload;
+
+      // Check if user exists
+      let user = await this.usersRepo.findOne({ where: { email } });
+
+      if (!user) {
+        // Create new user from Google account
+        user = this.usersRepo.create({
+          firstname: given_name || 'Utilisateur',
+          lastname: family_name || 'Google',
+          email,
+          password: await bcrypt.hash(randomBytes(32).toString('hex'), 10), // Random password
+          role: UserRole.BUYER,
+          avatar_url: picture,
+        });
+        await this.usersRepo.save(user);
+
+        await this.logsRepo.save(
+          this.logsRepo.create({
+            user_id: user.id,
+            action: 'register_google',
+            entity: 'user',
+            entity_id: user.id,
+          }),
+        );
+      } else {
+        // Update avatar if provided
+        if (picture && !user.avatar_url) {
+          await this.usersRepo.update(user.id, { avatar_url: picture });
+          user.avatar_url = picture;
+        }
+
+        if (!user.is_active) {
+          throw new ForbiddenException('Compte désactivé');
+        }
+
+        await this.logsRepo.save(
+          this.logsRepo.create({
+            user_id: user.id,
+            action: 'login_google',
+            entity: 'user',
+            entity_id: user.id,
+          }),
+        );
+      }
+
+      return {
+        accessToken: this.generateAccessToken(user),
+        refreshToken: this.generateRefreshToken(user),
+        user: this.sanitizeUser(user),
+      };
+    } catch (error) {
+      this.logger.error('Google OAuth error:', error);
+      throw new UnauthorizedException('Authentification Google échouée');
+    }
   }
 }

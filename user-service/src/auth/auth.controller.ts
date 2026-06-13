@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { GoogleLoginDto } from './dto/google-login.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -59,6 +60,17 @@ export class AuthController {
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
     const result = await this.authService.login(dto);
+    this.setTokenCookies(res, result.accessToken, result.refreshToken);
+    return { user: result.user };
+  }
+
+  @Post('google')
+  @HttpCode(200)
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Response({ passthrough: true }) res: ExpressResponse,
+  ) {
+    const result = await this.authService.loginWithGoogle(dto.credential);
     this.setTokenCookies(res, result.accessToken, result.refreshToken);
     return { user: result.user };
   }

@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "test:health": "node health-check.mjs",
+    "test:auth": "node test-auth-quick.mjs",
+    "test:e2e": "node test-e2e-complete.mjs",
+    "test:all": "npm run test:health && npm run test:e2e"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "pg": "^8.20.0"
