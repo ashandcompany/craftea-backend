@@ -1,3 +1,5 @@
+import { escapeHtml } from './escape.js';
+
 export interface ArtistVerificationRejectedParams {
   artistName: string;
   note?: string | null;
@@ -9,7 +11,7 @@ export function artistVerificationRejectedTemplate(
   const noteBlock = p.note
     ? `<div style="background:#FEF3C7;border-left:4px solid #D97706;padding:16px 20px;margin:24px 0;">
         <p style="margin:0;font-size:14px;color:#92400E;font-weight:600;">Motif du refus</p>
-        <p style="margin:8px 0 0;font-size:14px;color:#78350F;line-height:1.6;">${p.note}</p>
+        <p style="margin:8px 0 0;font-size:14px;color:#78350F;line-height:1.6;">${escapeHtml(p.note)}</p>
       </div>`
     : '';
 
@@ -34,7 +36,7 @@ export function artistVerificationRejectedTemplate(
         </tr>
         <tr>
           <td style="padding:40px;">
-            <p style="margin:0 0 16px;font-size:15px;color:#44403C;">Bonjour ${p.artistName},</p>
+            <p style="margin:0 0 16px;font-size:15px;color:#44403C;">Bonjour ${escapeHtml(p.artistName)},</p>
             <p style="margin:0 0 24px;font-size:15px;color:#44403C;line-height:1.6;">
               Après examen de votre dossier, votre demande de validation de compte artiste n'a pas été acceptée pour le moment.
             </p>

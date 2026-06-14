@@ -1,3 +1,5 @@
+import { escapeHtml } from './escape.js';
+
 export interface ArtistVerificationApprovedParams {
   artistName: string;
 }
@@ -26,7 +28,7 @@ export function artistVerificationApprovedTemplate(
         </tr>
         <tr>
           <td style="padding:40px;">
-            <p style="margin:0 0 16px;font-size:15px;color:#44403C;">Bonjour ${p.artistName},</p>
+            <p style="margin:0 0 16px;font-size:15px;color:#44403C;">Bonjour ${escapeHtml(p.artistName)},</p>
             <p style="margin:0 0 24px;font-size:15px;color:#44403C;line-height:1.6;">
               Félicitations ! Votre compte artiste Craftea a été <strong>validé</strong>. Vos œuvres ainsi que votre profil sont désormais visibles sur la plateforme.
             </p>

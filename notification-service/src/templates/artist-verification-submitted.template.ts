@@ -1,6 +1,9 @@
+import { escapeHtml } from './escape.js';
+
 export interface ArtistVerificationSubmittedParams {
   artistName: string;
   artistId: number;
+  adminUrl: string;
 }
 
 export function artistVerificationSubmittedTemplate(
@@ -29,7 +32,7 @@ export function artistVerificationSubmittedTemplate(
           <td style="padding:40px;">
             <p style="margin:0 0 16px;font-size:15px;color:#44403C;">Bonjour,</p>
             <p style="margin:0 0 24px;font-size:15px;color:#44403C;line-height:1.6;">
-              L'artiste <strong>${p.artistName}</strong> (ID&nbsp;: #${p.artistId}) vient de soumettre des documents de preuve de création pour la validation de son compte.
+              L'artiste <strong>${escapeHtml(p.artistName)}</strong> (ID&nbsp;: #${p.artistId}) vient de soumettre des documents de preuve de création pour la validation de son compte.
             </p>
             <p style="margin:0 0 24px;font-size:15px;color:#44403C;line-height:1.6;">
               Rendez-vous dans l'espace d'administration pour examiner les documents soumis et approuver ou refuser la demande.
@@ -37,7 +40,7 @@ export function artistVerificationSubmittedTemplate(
             <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
               <tr>
                 <td style="background:#7C8F6C;padding:14px 28px;">
-                  <a href="{{ADMIN_URL}}/account/admin/artists" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
+                  <a href="${p.adminUrl}/account/admin/artists" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
                     Examiner la demande →
                   </a>
                 </td>

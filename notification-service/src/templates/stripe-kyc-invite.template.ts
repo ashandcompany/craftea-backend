@@ -1,3 +1,5 @@
+import { escapeHtml } from './escape.js';
+
 export interface StripeKycInviteParams {
   artistName: string;
   onboardingUrl: string;
@@ -65,7 +67,7 @@ export function stripeKycInviteTemplate(p: StripeKycInviteParams): string {
               <!-- Message principal -->
               <div style="margin-bottom: 28px; padding: 20px; background: var(--sage-50); border-left: 4px solid var(--sage-400);">
                 <p style="margin: 0 0 8px 0; color: var(--stone-800); font-size: 16px; font-weight: 600;">
-                  Bonjour ${p.artistName},
+                  Bonjour ${escapeHtml(p.artistName)},
                 </p>
                 <p style="margin: 0; color: var(--stone-600); font-size: 14px; line-height: 1.5;">
                   Pour commencer à recevoir des paiements sur Craftea, nous devons vérifier votre identité via notre partenaire de paiement sécurisé.

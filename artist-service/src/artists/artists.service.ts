@@ -187,12 +187,9 @@ export class ArtistsService {
       where: { validated: true },
       relations: ['shops'],
     });
-    return Promise.all(
-      profiles.map(async (p) => ({
-        ...p,
-        user: await this.fetchUser(p.user_id),
-      })),
-    );
+    // Fetch all users in parallel instead of serially
+    const users = await Promise.all(profiles.map((p) => this.fetchUser(p.user_id)));
+    return profiles.map((p, i) => ({ ...p, user: users[i] }));
   }
 
   async update(
@@ -347,64 +344,66 @@ export class ArtistsService {
   }
 
   async creditWallet(artistId: number, amountCents: number) {
+    // Atomic increment — no read-modify-write race condition
+    const result = await this.artistsRepo.increment({ id: artistId }, 'wallet_balance', amountCents);
+    if (!result.affected) throw new NotFoundException('Profil artiste introuvable');
     const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
-    if (!profile) throw new NotFoundException('Profil artiste introuvable');
-
-    const current = Number(profile.wallet_balance ?? 0);
-    profile.wallet_balance = current + amountCents;
-    await this.artistsRepo.save(profile);
-
     return {
-      artistId: profile.id,
-      walletBalance: Number(profile.wallet_balance ?? 0),
+      artistId,
+      walletBalance: Number(profile!.wallet_balance ?? 0),
       amountCredited: amountCents,
     };
   }
 
   async debitWallet(artistId: number, amountCents: number) {
-    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
-    if (!profile) throw new NotFoundException('Profil artiste introuvable');
+    // Conditional atomic decrement: only updates if balance is sufficient
+    const result = await this.artistsRepo
+      .createQueryBuilder()
+      .update(ArtistProfile)
+      .set({ wallet_balance: () => `wallet_balance - ${amountCents}` })
+      .where('id = :id AND wallet_balance >= :amount', { id: artistId, amount: amountCents })
+      .execute();
 
-    const current = Number(profile.wallet_balance ?? 0);
-    if (current < amountCents) {
+    if (!result.affected) {
+      const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+      if (!profile) throw new NotFoundException('Profil artiste introuvable');
       throw new ConflictException('Solde insuffisant');
     }
 
-    profile.wallet_balance = current - amountCents;
-    await this.artistsRepo.save(profile);
-
+    const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
     return {
-      artistId: profile.id,
-      walletBalance: Number(profile.wallet_balance ?? 0),
+      artistId,
+      walletBalance: Number(profile!.wallet_balance ?? 0),
       amountDebited: amountCents,
     };
   }
 
   async addPendingBalance(artistId: number, amountCents: number) {
+    // Atomic increment
+    const result = await this.artistsRepo.increment({ id: artistId }, 'pending_balance', amountCents);
+    if (!result.affected) throw new NotFoundException('Profil artiste introuvable');
     const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
-    if (!profile) throw new NotFoundException('Profil artiste introuvable');
-
-    profile.pending_balance = Number(profile.pending_balance ?? 0) + amountCents;
-    await this.artistsRepo.save(profile);
-
     return {
-      artistId: profile.id,
-      pendingBalance: Number(profile.pending_balance ?? 0),
+      artistId,
+      pendingBalance: Number(profile!.pending_balance ?? 0),
       amountAdded: amountCents,
     };
   }
 
   async subtractPendingBalance(artistId: number, amountCents: number) {
+    // Atomic floor-at-zero decrement using GREATEST
+    const result = await this.artistsRepo
+      .createQueryBuilder()
+      .update(ArtistProfile)
+      .set({ pending_balance: () => `GREATEST(0, pending_balance - ${amountCents})` })
+      .where('id = :id', { id: artistId })
+      .execute();
+
+    if (!result.affected) throw new NotFoundException('Profil artiste introuvable');
     const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
-    if (!profile) throw new NotFoundException('Profil artiste introuvable');
-
-    const current = Number(profile.pending_balance ?? 0);
-    profile.pending_balance = Math.max(0, current - amountCents);
-    await this.artistsRepo.save(profile);
-
     return {
-      artistId: profile.id,
-      pendingBalance: Number(profile.pending_balance ?? 0),
+      artistId,
+      pendingBalance: Number(profile!.pending_balance ?? 0),
       amountSubtracted: amountCents,
     };
   }
@@ -456,12 +455,9 @@ export class ArtistsService {
 
   async adminGetAll() {
     const profiles = await this.artistsRepo.find({ relations: ['shops'] });
-    return Promise.all(
-      profiles.map(async (p) => ({
-        ...p,
-        user: await this.fetchUser(p.user_id),
-      })),
-    );
+    // Fetch all users in parallel instead of serially
+    const users = await Promise.all(profiles.map((p) => this.fetchUser(p.user_id)));
+    return profiles.map((p, i) => ({ ...p, user: users[i] }));
   }
 
   async findByStripeAccountId(
@@ -518,7 +514,7 @@ export class ArtistsService {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const file_url = await this.minioService.uploadFile(file);
+        const file_url = await this.minioService.uploadVerificationFile(file);
         const doc = this.verificationDocsRepo.create({
           artist_profile_id: profile.id,
           file_url,
@@ -592,14 +588,24 @@ export class ArtistsService {
       order: { updated_at: 'DESC' },
     });
     return Promise.all(
-      profiles.map(async (p) => ({
-        ...p,
-        user: await this.fetchUser(p.user_id),
-        documents: await this.verificationDocsRepo.find({
-          where: { artist_profile_id: p.id },
-          order: { created_at: 'DESC' },
-        }),
-      })),
+      profiles.map(async (p) => {
+        const [user, docs] = await Promise.all([
+          this.fetchUser(p.user_id),
+          this.verificationDocsRepo.find({
+            where: { artist_profile_id: p.id },
+            order: { created_at: 'DESC' },
+          }),
+        ]);
+        // Replace bare object names with pre-signed URLs so private
+        // verification documents are never publicly accessible.
+        const documents = await Promise.all(
+          docs.map(async (doc) => ({
+            ...doc,
+            file_url: await this.minioService.getPresignedUrl(doc.file_url),
+          })),
+        );
+        return { ...p, user, documents };
+      }),
     );
   }
 

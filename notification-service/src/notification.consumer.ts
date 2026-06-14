@@ -1,4 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { EmailService } from './email.service.js';
 import { orderConfirmationTemplate } from './templates/order-confirmation.template.js';
@@ -37,7 +38,10 @@ interface PayoutPayload {
 export class NotificationConsumer {
   private readonly logger = new Logger(NotificationConsumer.name);
 
-  constructor(private readonly email: EmailService) {}
+  constructor(
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
+  ) {}
 
   @EventPattern('order.confirmed')
   async handleOrderConfirmed(@Payload() payload: OrderConfirmedPayload) {
@@ -116,15 +120,17 @@ export class NotificationConsumer {
     @Payload() payload: { artistName: string; artistEmail: string; artistId: number },
   ) {
     this.logger.log(`[artist.verification-submitted] artist=${payload.artistName} id=${payload.artistId}`);
-    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminEmail = this.config.get<string>('ADMIN_EMAIL');
     if (!adminEmail) {
       this.logger.warn('[artist.verification-submitted] ADMIN_EMAIL not set, skipping notification');
       return;
     }
     try {
+      const adminUrl = this.config.get<string>('APP_URL', 'http://localhost:3000');
       const html = artistVerificationSubmittedTemplate({
         artistName: payload.artistName,
         artistId: payload.artistId,
+        adminUrl,
       });
       await this.email.send(adminEmail, `Nouvelle demande de validation : ${payload.artistName}`, html);
     } catch (err) {

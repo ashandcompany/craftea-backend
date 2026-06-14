@@ -1,3 +1,5 @@
+import { escapeHtml } from './escape.js';
+
 export interface StripeKycConfirmedParams {
   artistName: string;
 }
@@ -73,7 +75,7 @@ export function stripeKycConfirmedTemplate(p: StripeKycConfirmedParams): string 
               <!-- Message principal -->
               <div style="margin-bottom: 28px; padding: 20px; background: #F0FDF4; border-left: 4px solid #059669;">
                 <p style="margin: 0 0 8px 0; color: var(--stone-800); font-size: 16px; font-weight: 600;">
-                  Félicitations ${p.artistName} !
+                  Félicitations ${escapeHtml(p.artistName)} !
                 </p>
                 <p style="margin: 0; color: var(--stone-600); font-size: 14px; line-height: 1.5;">
                   Votre identité a été <strong style="color: #059669;">vérifiée avec succès</strong> par notre partenaire de paiement.

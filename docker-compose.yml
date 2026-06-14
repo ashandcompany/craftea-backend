@@ -321,6 +321,7 @@ services:
       PORT: 3008
       RESEND_API_KEY: placeholder
       EMAIL_FROM: noreply@craftea.local
+      ADMIN_EMAIL: admin@craftea.local
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       APP_URL: http://localhost:3000

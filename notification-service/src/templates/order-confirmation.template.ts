@@ -1,3 +1,5 @@
+import { escapeHtml } from './escape.js';
+
 export interface OrderConfirmationParams {
   orderNumber: string;
   items: { name: string; image_url?: string | null; qty: number; unitPrice: number }[];
@@ -11,14 +13,14 @@ export function orderConfirmationTemplate(p: OrderConfirmationParams): string {
   const rows = p.items
     .map((item) => {
       const imageHtml = item.image_url
-        ? `<img src="${item.image_url}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 12px;" />`
+        ? `<img src="${item.image_url}" alt="${escapeHtml(item.name)}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 12px;" />`
         : '';
       
       return `
        <tr>
         <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); display: flex; align-items: center;">
           ${imageHtml}
-          <span style="color: var(--stone-700); font-size: 14px;">${item.name}</span>
+          <span style="color: var(--stone-700); font-size: 14px;">${escapeHtml(item.name)}</span>
         </td>
         <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); text-align: center; color: var(--stone-600); font-size: 14px;">${item.qty}</td>
         <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); text-align: right; color: var(--stone-700); font-size: 14px; font-weight: 500;">${(item.unitPrice / 100).toFixed(2)} €</td>
