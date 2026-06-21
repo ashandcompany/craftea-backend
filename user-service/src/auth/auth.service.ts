@@ -286,7 +286,8 @@ export class AuthService {
         user: this.sanitizeUser(user),
       };
     } catch (error) {
-      this.logger.error('Google OAuth error:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Google OAuth error [${error?.constructor?.name ?? 'unknown'}]: ${msg}`);
       throw new UnauthorizedException('Authentification Google échouée');
     }
   }
