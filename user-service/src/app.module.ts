@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module.js';
 import { AddressesModule } from './addresses/addresses.module.js';
 import { LogsModule } from './logs/logs.module.js';
 import { MinioModule } from './minio/minio.module.js';
+import { ArtistRequestsModule } from './artist-requests/artist-requests.module.js';
 import { AppController } from './app.controller.js';
 
 @Module({
@@ -30,6 +31,7 @@ import { AppController } from './app.controller.js';
     AddressesModule,
     LogsModule,
     MinioModule,
+    ArtistRequestsModule,
   ],
   controllers: [AppController],
 })

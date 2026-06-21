@@ -11,9 +11,10 @@ export const PORT = parseInt(env('PORT', '3001'), 10);
 export const CORS_ORIGIN = env('CORS_ORIGIN', 'http://localhost:3000');
 
 export const SERVICES: ServiceConfig[] = [
-  { pathPrefix: '/api/users',         target: env('USER_SERVICE_URL',         'http://user-service:3010') },
-  { pathPrefix: '/api/auth',          target: env('USER_SERVICE_URL',         'http://user-service:3010') },
-  { pathPrefix: '/api/addresses',     target: env('USER_SERVICE_URL',         'http://user-service:3010') },
+  { pathPrefix: '/api/users',            target: env('USER_SERVICE_URL',         'http://user-service:3010') },
+  { pathPrefix: '/api/auth',             target: env('USER_SERVICE_URL',         'http://user-service:3010') },
+  { pathPrefix: '/api/addresses',        target: env('USER_SERVICE_URL',         'http://user-service:3010') },
+  { pathPrefix: '/api/artist-requests',  target: env('USER_SERVICE_URL',         'http://user-service:3010') },
   { pathPrefix: '/api/artists',       target: env('ARTIST_SERVICE_URL',       'http://artist-service:3002') },
   { pathPrefix: '/api/shops',         target: env('ARTIST_SERVICE_URL',       'http://artist-service:3002') },
   { pathPrefix: '/api/products',      target: env('CATALOG_SERVICE_URL',      'http://catalog-service:3003') },
