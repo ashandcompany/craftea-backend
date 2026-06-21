@@ -24,10 +24,12 @@ services:
     image: ${REGISTRY}/craftea-frontend:${FRONTEND_IMAGE_TAG:-latest}
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://51.178.27.251:3001
-      NEXT_PUBLIC_MINIO_URL: http://51.178.27.251:9000
+      NEXT_PUBLIC_API_URL: http://craftea.ddnsfree.com:3001
+      NEXT_PUBLIC_MINIO_URL: http://craftea.ddnsfree.com:9000
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      NEXT_PUBLIC_APP_URL: http://craftea.ddnsfree.com
+      NEXTAUTH_URL: http://craftea.ddnsfree.com
     ports:
       - "3000:3000"
     networks:
@@ -46,7 +48,7 @@ services:
     image: ${REGISTRY}/craftea-api-gateway:${IMAGE_TAG}
     environment:
       PORT: 3001
-      CORS_ORIGIN: http://51.178.27.251:3000
+      CORS_ORIGIN: http://craftea.ddnsfree.com
       USER_SERVICE_URL: http://user-service:3010
       ARTIST_SERVICE_URL: http://artist-service:3002
       CATALOG_SERVICE_URL: http://catalog-service:3003
@@ -89,10 +91,10 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: user-images
       MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_URL: http://51.178.27.251:9000
+      MINIO_PUBLIC_URL: http://craftea.ddnsfree.com:9000
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
-      APP_URL: http://51.178.27.251
+      APP_URL: http://craftea.ddnsfree.com
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -128,7 +130,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: artist-images
       MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_URL: http://51.178.27.251:9000
+      MINIO_PUBLIC_URL: http://craftea.ddnsfree.com:9000
       USER_SERVICE_URL: http://user-service:3010
       RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
     networks:
@@ -159,7 +161,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: product-images
       MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_URL: http://51.178.27.251:9000
+      MINIO_PUBLIC_URL: http://craftea.ddnsfree.com:9000
       REDIS_HOST: cache
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -194,7 +196,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: review-images
       MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_URL: http://51.178.27.251:9000
+      MINIO_PUBLIC_URL: http://craftea.ddnsfree.com:9000
     networks:
       - internal
     deploy:
@@ -223,7 +225,7 @@ services:
       USER_SERVICE_URL: http://user-service:3010
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
-      APP_URL: http://51.178.27.251
+      APP_URL: http://craftea.ddnsfree.com
     networks:
       - internal
     deploy:
@@ -296,7 +298,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
-      APP_URL: http://51.178.27.251
+      APP_URL: http://craftea.ddnsfree.com
       RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
     networks:
       - internal
