@@ -22,6 +22,7 @@ export const SERVICES: ServiceConfig[] = [
   { pathPrefix: '/api/tags',          target: env('CATALOG_SERVICE_URL',      'http://catalog-service:3003') },
   { pathPrefix: '/api/favorites',     target: env('INTERACTION_SERVICE_URL',  'http://interaction-service:3004') },
   { pathPrefix: '/api/reviews',       target: env('INTERACTION_SERVICE_URL',  'http://interaction-service:3004') },
+  { pathPrefix: '/api/messages',      target: env('INTERACTION_SERVICE_URL',  'http://interaction-service:3004') },
   { pathPrefix: '/api/orders',        target: env('ORDER_SERVICE_URL',        'http://order-service:3005') },
   { pathPrefix: '/api/cart',          target: env('CART_SERVICE_URL',         'http://cart-service:3006') },
   { pathPrefix: '/api/payments',      target: env('PAYMENT_SERVICE_URL',      'http://payment-service:3007') },
