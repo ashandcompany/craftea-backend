@@ -211,11 +211,17 @@ services:
       MINIO_BUCKET: review-images
       MINIO_USE_SSL: "false"
       MINIO_PUBLIC_URL: http://localhost:9000
+      USER_SERVICE_URL: http://user-service:3010
+      INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
+      APP_URL: http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
       minio:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   # ───────────── Order Service (NestJS) ─────────────
   order-service:

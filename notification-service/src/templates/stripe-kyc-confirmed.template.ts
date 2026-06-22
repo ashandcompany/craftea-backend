@@ -122,7 +122,7 @@ export function stripeKycConfirmedTemplate(p: StripeKycConfirmedParams): string 
                 <tr>
                   <td style="text-align: left;">
                     <p style="margin: 0 0 8px 0; color: var(--stone-500); font-size: 11px; font-weight: 500;">
-                      © 2024 Craftea — Marché artisanal en ligne
+                      © 2026 Craftea — Marché artisanal en ligne
                     </p>
                     <p style="margin: 0; color: var(--stone-400); font-size: 10px;">
                       L'artisanat authentique

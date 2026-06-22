@@ -198,6 +198,10 @@ services:
       MINIO_BUCKET: review-images
       MINIO_USE_SSL: "false"
       MINIO_PUBLIC_URL: https://craftea.ddnsfree.com:9000
+      USER_SERVICE_URL: http://user-service:3010
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      APP_URL: https://craftea.ddnsfree.com
     networks:
       - internal
     deploy:

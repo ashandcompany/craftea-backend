@@ -10,6 +10,7 @@ import { payoutFailedTemplate } from './templates/payout-failed.template.js';
 import { artistVerificationSubmittedTemplate } from './templates/artist-verification-submitted.template.js';
 import { artistVerificationApprovedTemplate } from './templates/artist-verification-approved.template.js';
 import { artistVerificationRejectedTemplate } from './templates/artist-verification-rejected.template.js';
+import { messageReceivedTemplate } from './templates/message-received.template.js';
 
 interface OrderConfirmedPayload {
   buyerEmail: string;
@@ -164,6 +165,34 @@ export class NotificationConsumer {
       await this.email.send(payload.artistEmail, 'Votre demande de validation Craftea', html);
     } catch (err) {
       this.logger.error(`[artist.verification-rejected] handler error: ${(err as Error).message}`);
+    }
+  }
+
+  @EventPattern('message.received')
+  async handleMessageReceived(
+    @Payload() payload: {
+      recipientEmail: string;
+      recipientName: string;
+      senderName: string;
+      messagePreview: string;
+      conversationUrl: string;
+    },
+  ) {
+    this.logger.log(`[message.received] from=${payload.senderName} to=${payload.recipientEmail}`);
+    try {
+      const html = messageReceivedTemplate({
+        recipientName: payload.recipientName,
+        senderName: payload.senderName,
+        messagePreview: payload.messagePreview,
+        conversationUrl: payload.conversationUrl,
+      });
+      await this.email.send(
+        payload.recipientEmail,
+        `Nouveau message de ${payload.senderName} sur Craftea`,
+        html,
+      );
+    } catch (err) {
+      this.logger.error(`[message.received] handler error: ${(err as Error).message}`);
     }
   }
 }

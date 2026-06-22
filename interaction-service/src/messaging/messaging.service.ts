@@ -3,16 +3,21 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Conversation } from './entities/conversation.entity.js';
 import { Message } from './entities/message.entity.js';
+import { MessagingEventsPublisher } from './messaging-events.publisher.js';
 
 @Injectable()
 export class MessagingService {
+  private readonly logger = new Logger(MessagingService.name);
   private readonly userServiceUrl: string;
+  private readonly internalToken: string;
+  private readonly appUrl: string;
 
   constructor(
     @InjectRepository(Conversation)
@@ -22,11 +27,14 @@ export class MessagingService {
     @InjectDataSource()
     private dataSource: DataSource,
     private configService: ConfigService,
+    private eventsPublisher: MessagingEventsPublisher,
   ) {
     this.userServiceUrl = this.configService.get<string>(
       'USER_SERVICE_URL',
       'http://user-service:3010',
     );
+    this.internalToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -58,6 +66,21 @@ export class MessagingService {
   private assertParticipant(conv: Conversation, userId: number) {
     if (conv.buyer_id !== userId && conv.artist_id !== userId) {
       throw new ForbiddenException('Accès interdit');
+    }
+  }
+
+  /** Récupère les infos complètes d'un user (email inclus) via l'endpoint interne. */
+  private async getUserInternal(
+    id: number,
+  ): Promise<{ id: number; email: string; firstname: string; lastname: string } | null> {
+    try {
+      const res = await fetch(`${this.userServiceUrl}/api/users/internal/${id}`, {
+        headers: { 'x-service-token': this.internalToken },
+      });
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
     }
   }
 
@@ -193,7 +216,44 @@ export class MessagingService {
     // Update conversation updated_at for ordering
     await this.conversationsRepo.update(conversationId, { updated_at: new Date() });
 
+    // Notify recipient by email — fire and forget, never block the response
+    const recipientId = conv.buyer_id === userId ? conv.artist_id : conv.buyer_id;
+    this.notifyRecipient(userId, recipientId, conversationId, trimmed).catch((err) =>
+      this.logger.error(`notifyRecipient failed: ${(err as Error).message}`),
+    );
+
     return msg;
+  }
+
+  private async notifyRecipient(
+    senderId: number,
+    recipientId: number,
+    conversationId: number,
+    content: string,
+  ): Promise<void> {
+    const [sender, recipient] = await Promise.all([
+      this.getUserInternal(senderId),
+      this.getUserInternal(recipientId),
+    ]);
+
+    if (!recipient?.email) {
+      this.logger.warn(`[message.received] recipient ${recipientId} not found, skipping email`);
+      return;
+    }
+
+    const senderName = sender
+      ? [sender.firstname, sender.lastname].filter(Boolean).join(' ')
+      : 'Quelqu\'un';
+
+    const preview = content.length > 120 ? `${content.substring(0, 120)}…` : content;
+
+    await this.eventsPublisher.publish('message.received', {
+      recipientEmail: recipient.email,
+      recipientName: [recipient.firstname, recipient.lastname].filter(Boolean).join(' '),
+      senderName,
+      messagePreview: preview,
+      conversationUrl: `${this.appUrl}/account/messages?c=${conversationId}`,
+    });
   }
 
   /** Marque comme lus tous les messages reçus dans cette conversation. */
