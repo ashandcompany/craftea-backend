@@ -29,29 +29,51 @@ export class MinioService implements OnModuleInit {
     const exists = await this.client.bucketExists(this.bucket);
     if (!exists) {
       await this.client.makeBucket(this.bucket);
-      const policy = {
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Principal: { AWS: ['*'] },
-            Action: ['s3:GetObject'],
-            Resource: [`arn:aws:s3:::${this.bucket}/*`],
-          },
-        ],
-      };
-      await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
-      this.logger.log(`Bucket "${this.bucket}" created with public read policy`);
     }
+    // All objects are publicly readable except verifications/ (identity documents).
+    // The explicit Deny overrides the Allow for anonymous access, keeping docs private.
+    const policy = {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Principal: { AWS: ['*'] },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${this.bucket}/*`],
+        },
+        {
+          Effect: 'Deny',
+          Principal: { AWS: ['*'] },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${this.bucket}/verifications/*`],
+        },
+      ],
+    };
+    await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
+    this.logger.log(`Bucket "${this.bucket}" ready with public-read on * except verifications/`);
   }
 
   async uploadFile(file: Express.Multer.File): Promise<string> {
     const ext = path.extname(file.originalname) || '.jpg';
-    const objectName = `${uuidv4()}${ext}`;
+    const objectName = `public/${uuidv4()}${ext}`;
     await this.client.putObject(this.bucket, objectName, file.buffer, file.size, {
       'Content-Type': file.mimetype,
     });
     return objectName;
+  }
+
+  async uploadVerificationFile(file: Express.Multer.File): Promise<string> {
+    const ext = path.extname(file.originalname) || '.bin';
+    const objectName = `verifications/${uuidv4()}${ext}`;
+    await this.client.putObject(this.bucket, objectName, file.buffer, file.size, {
+      'Content-Type': file.mimetype,
+    });
+    return objectName;
+  }
+
+  async getPresignedUrl(objectName: string, expirySeconds = 3600): Promise<string> {
+    const key = this.objectNameFromUrl(objectName) ?? objectName;
+    return this.client.presignedGetObject(this.bucket, key, expirySeconds);
   }
 
   async deleteFile(objectNameOrUrl: string): Promise<void> {

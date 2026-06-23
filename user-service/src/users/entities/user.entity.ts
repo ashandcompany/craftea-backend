@@ -38,6 +38,15 @@ export class User {
   @Column({ default: true })
   is_active: boolean;
 
+  @Column({ nullable: true })
+  avatar_url?: string;
+
+  @Column({ nullable: true, type: 'varchar', select: false })
+  reset_password_token?: string | null;
+
+  @Column({ nullable: true, type: 'timestamp' })
+  reset_password_expires?: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 

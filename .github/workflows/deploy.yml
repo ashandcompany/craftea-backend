@@ -1,0 +1,175 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [master]
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Secrets à configurer dans le repo BACKEND (Settings > Secrets > Actions) :
+#
+#   SERVER_HOST            = 51.178.27.251
+#   SERVER_USER            = debian
+#   SERVER_SSH_KEY         = contenu de ~/.ssh/id_rsa
+#   SERVER_SSH_KNOWN_HOST  = sortie de : ssh-keyscan 51.178.27.251
+#
+#   DB_PASSWORD            openssl rand -base64 32
+#   REDIS_PASSWORD         openssl rand -base64 32
+#   RABBITMQ_PASSWORD      openssl rand -base64 32
+#   MINIO_SECRET_KEY       openssl rand -base64 32
+#   JWT_SECRET             openssl rand -base64 48
+#   JWT_REFRESH_SECRET     openssl rand -base64 48
+#   INTERNAL_SERVICE_TOKEN openssl rand -hex 32
+#
+#   STRIPE_PUBLISHABLE_KEY  pk_test_...
+#   GOOGLE_CLIENT_ID        ...apps.googleusercontent.com
+#   GOOGLE_CLIENT_SECRET    GOCSPX-...
+#   RESEND_API_KEY          re_...
+#   EMAIL_FROM              noreply@craftea.fr
+#   ADMIN_EMAIL             admin@craftea.fr
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+
+  # ── Build des services backend (parallèle via matrix) ─────────────────────
+  build-backend:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: Dockerfile.gateway
+          - service: user-service
+            dockerfile: Dockerfile
+          - service: artist-service
+            dockerfile: Dockerfile
+          - service: catalog-service
+            dockerfile: Dockerfile
+          - service: interaction-service
+            dockerfile: Dockerfile
+          - service: order-service
+            dockerfile: Dockerfile
+          - service: cart-service
+            dockerfile: Dockerfile
+          - service: payment-service
+            dockerfile: Dockerfile
+          - service: notification-service
+            dockerfile: Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          push: true
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          build-args: SERVICE_DIR=${{ matrix.service }}
+          tags: |
+            ${{ env.REGISTRY }}/craftea-${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/craftea-${{ matrix.service }}:latest
+
+  # ── Build image PostgreSQL (init.sql inclus) ───────────────────────────────
+  build-postgres:
+    name: Build postgres
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push postgres
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile.postgres
+          push: true
+          cache-from: type=gha,scope=postgres
+          cache-to: type=gha,mode=max,scope=postgres
+          tags: |
+            ${{ env.REGISTRY }}/craftea-postgres:${{ github.sha }}
+            ${{ env.REGISTRY }}/craftea-postgres:latest
+
+  # ── Deploy stack complet sur le Swarm ─────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: [build-backend, build-postgres]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.SERVER_SSH_KNOWN_HOST }}" > ~/.ssh/known_hosts
+
+      - name: Create Docker context (remote swarm via SSH)
+        run: |
+          docker context create prod \
+            --docker "host=ssh://${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+          docker context use prod
+
+      - name: Login GHCR (pour --with-registry-auth)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy stack
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_TAG: ${{ github.sha }}
+          # Le frontend est géré par son propre repo — on utilise :latest
+          FRONTEND_IMAGE_TAG: latest
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          INTERNAL_SERVICE_TOKEN: ${{ secrets.INTERNAL_SERVICE_TOKEN }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        run: |
+          docker stack deploy \
+            -c docker-stack.yml \
+            craftea \
+            --with-registry-auth \
+            --prune

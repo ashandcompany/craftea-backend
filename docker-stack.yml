@@ -1,0 +1,443 @@
+version: "3.9"
+
+# Variables requises dans l'environnement shell avant deploy :
+#   REGISTRY            — ex: ghcr.io/mon-org
+#   IMAGE_TAG           — sha du commit backend
+#   FRONTEND_IMAGE_TAG  — sha du commit frontend (ou "latest")
+#   DB_PASSWORD    — mot de passe PostgreSQL
+#   REDIS_PASSWORD — mot de passe Redis
+#   RABBITMQ_PASSWORD
+#   JWT_SECRET / JWT_REFRESH_SECRET
+#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+#   STRIPE_PUBLISHABLE_KEY
+#   RESEND_API_KEY / EMAIL_FROM / ADMIN_EMAIL
+#   INTERNAL_SERVICE_TOKEN
+#   MINIO_SECRET_KEY
+#
+# Secrets Docker Swarm à créer une seule fois sur le serveur (voir deploy/init-secrets.sh) :
+#   stripe_secret_key / stripe_webhook_secret
+
+services:
+
+  # ── Frontend Next.js ───────────────────────────────────────────────────────
+  frontend:
+    image: ${REGISTRY}/craftea-frontend:${FRONTEND_IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://craftea.ddnsfree.com:3001
+      NEXT_PUBLIC_MINIO_URL: https://craftea.ddnsfree.com:9000
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      NEXT_PUBLIC_APP_URL: https://craftea.ddnsfree.com
+      NEXTAUTH_URL: https://craftea.ddnsfree.com
+    ports:
+      - "3000:3000"
+    networks:
+      - public
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  # ── API Gateway ────────────────────────────────────────────────────────────
+  api-gateway:
+    image: ${REGISTRY}/craftea-api-gateway:${IMAGE_TAG}
+    environment:
+      PORT: 3001
+      CORS_ORIGIN: https://craftea.ddnsfree.com
+      USER_SERVICE_URL: http://user-service:3010
+      ARTIST_SERVICE_URL: http://artist-service:3002
+      CATALOG_SERVICE_URL: http://catalog-service:3003
+      INTERACTION_SERVICE_URL: http://interaction-service:3004
+      ORDER_SERVICE_URL: http://order-service:3005
+      CART_SERVICE_URL: http://cart-service:3006
+      PAYMENT_SERVICE_URL: http://payment-service:3007
+      NOTIFICATION_SERVICE_URL: http://notification-service:3008
+    ports:
+      - "3001:3001"
+    networks:
+      - public
+      - internal
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  # ── User Service ───────────────────────────────────────────────────────────
+  user-service:
+    image: ${REGISTRY}/craftea-user-service:${IMAGE_TAG}
+    environment:
+      PORT: 3010
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_users
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: 7d
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: user-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: https://craftea.ddnsfree.com:9000
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      APP_URL: https://craftea.ddnsfree.com
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    networks:
+      - internal
+      - public
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Artist Service ─────────────────────────────────────────────────────────
+  artist-service:
+    image: ${REGISTRY}/craftea-artist-service:${IMAGE_TAG}
+    secrets:
+      - stripe_secret_key
+    environment:
+      PORT: 3002
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_artists
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: artist-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: https://craftea.ddnsfree.com:9000
+      USER_SERVICE_URL: http://user-service:3010
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Catalog Service ────────────────────────────────────────────────────────
+  catalog-service:
+    image: ${REGISTRY}/craftea-catalog-service:${IMAGE_TAG}
+    environment:
+      PORT: 3003
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_catalog
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: product-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: https://craftea.ddnsfree.com:9000
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_CACHE_TTL: 3600
+      REDIS_IMAGE_CACHE_TTL: 86400
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Interaction Service ────────────────────────────────────────────────────
+  interaction-service:
+    image: ${REGISTRY}/craftea-interaction-service:${IMAGE_TAG}
+    environment:
+      PORT: 3004
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_interactions
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: review-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: https://craftea.ddnsfree.com:9000
+      USER_SERVICE_URL: http://user-service:3010
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      APP_URL: https://craftea.ddnsfree.com
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Order Service ──────────────────────────────────────────────────────────
+  order-service:
+    image: ${REGISTRY}/craftea-order-service:${IMAGE_TAG}
+    environment:
+      PORT: 3005
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_orders
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CATALOG_URL: http://catalog-service:3003
+      ARTIST_URL: http://artist-service:3002
+      PAYMENT_URL: http://payment-service:3007
+      USER_SERVICE_URL: http://user-service:3010
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      APP_URL: https://craftea.ddnsfree.com
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Cart Service ───────────────────────────────────────────────────────────
+  cart-service:
+    image: ${REGISTRY}/craftea-cart-service:${IMAGE_TAG}
+    environment:
+      PORT: 3006
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_carts
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Payment Service ────────────────────────────────────────────────────────
+  payment-service:
+    image: ${REGISTRY}/craftea-payment-service:${IMAGE_TAG}
+    secrets:
+      - stripe_secret_key
+      - stripe_webhook_secret
+    environment:
+      PORT: 3007
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: craftea_payments
+      DB_USER: craftea
+      DB_PASS: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ORDER_URL: http://order-service:3005
+      ARTIST_URL: http://artist-service:3002
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── Notification Service ───────────────────────────────────────────────────
+  notification-service:
+    image: ${REGISTRY}/craftea-notification-service:${IMAGE_TAG}
+    environment:
+      PORT: 3008
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      APP_URL: https://craftea.ddnsfree.com
+      RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  db:
+    image: ${REGISTRY}/craftea-postgres:${IMAGE_TAG}
+    environment:
+      POSTGRES_USER: craftea
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U craftea"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  cache:
+    image: redis:8.6.1-alpine
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── RabbitMQ ───────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: craftea
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - internal
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ── MinIO (Object Storage) ─────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: craftea_minio
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - public
+      - internal
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+secrets:
+  stripe_secret_key:
+    external: true
+  stripe_webhook_secret:
+    external: true
+
+networks:
+  public:
+    driver: overlay
+    attachable: true
+  internal:
+    driver: overlay
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:

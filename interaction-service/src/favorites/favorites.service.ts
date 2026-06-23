@@ -55,4 +55,9 @@ export class FavoritesService {
     });
     return { isFavorite: !!favorite };
   }
+
+  async count(productId: number) {
+    const count = await this.favoritesRepo.count({ where: { product_id: productId } });
+    return { product_id: productId, count };
+  }
 }

@@ -11,11 +11,17 @@ import {
   UploadedFiles,
   Request,
   ParseIntPipe,
+  ForbiddenException,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { ConfigService } from '@nestjs/config';
+import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ArtistsService } from './artists.service.js';
 import { CreateArtistDto } from './dto/create-artist.dto.js';
 import { UpdateArtistDto } from './dto/update-artist.dto.js';
+import { WalletAdjustDto } from './dto/wallet-adjust.dto.js';
+import { SubmitVerificationDto } from './dto/submit-verification.dto.js';
+import { ReviewVerificationDto } from './dto/review-verification.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -27,7 +33,19 @@ const imageUpload = FileFieldsInterceptor([
 
 @Controller('artists')
 export class ArtistsController {
-  constructor(private readonly artistsService: ArtistsService) {}
+  constructor(
+    private readonly artistsService: ArtistsService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private assertInternalToken(req: any) {
+    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    const provided = req.headers['x-service-token'];
+
+    if (!expected || provided !== expected) {
+      throw new ForbiddenException('Invalid service token');
+    }
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist')
@@ -50,6 +68,87 @@ export class ArtistsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist')
+  @Post('profile/me/stripe/onboarding')
+  createStripeAccount(@Request() req) {
+    return this.artistsService.createStripeAccount(req.user.id);
+  }
+
+  @Get('internal/by-stripe/:stripeAccountId')
+  internalGetByStripeAccount(
+    @Param('stripeAccountId') stripeAccountId: string,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.findByStripeAccountId(stripeAccountId);
+  }
+
+  @Patch('internal/stripe/mark-ready')
+  internalMarkStripeReady(
+    @Body() body: { stripe_account_id: string },
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.markStripeReady(body.stripe_account_id);
+  }
+
+  @Patch('internal/stripe/mark-not-ready')
+  internalMarkStripeNotReady(
+    @Body() body: { stripe_account_id: string },
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.markStripeNotReady(body.stripe_account_id);
+  }
+
+  @Patch('internal/:id/wallet/credit')
+  internalCreditWallet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.creditWallet(id, dto.amount_cents);
+  }
+
+  @Patch('internal/:id/wallet/debit')
+  internalDebitWallet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.debitWallet(id, dto.amount_cents);
+  }
+
+  @Patch('internal/:id/wallet/add-pending')
+  internalAddPendingBalance(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.addPendingBalance(id, dto.amount_cents);
+  }
+
+  @Patch('internal/:id/wallet/subtract-pending')
+  internalSubtractPendingBalance(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: WalletAdjustDto,
+    @Request() req,
+  ) {
+    this.assertInternalToken(req);
+    return this.artistsService.subtractPendingBalance(id, dto.amount_cents);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Get('profile/me/stripe/status')
+  stripeStatus(@Request() req) {
+    return this.artistsService.syncStripeOnboardingStatus(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
   @Post()
   @UseInterceptors(imageUpload)
   create(
@@ -58,6 +157,42 @@ export class ArtistsController {
     @UploadedFiles() files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
     return this.artistsService.create(dto, req.user.id, files || {});
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Post('profile/me/verification')
+  @UseInterceptors(FilesInterceptor('files', 5, { storage: memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }))
+  submitVerification(
+    @Request() req,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() dto: SubmitVerificationDto,
+  ) {
+    return this.artistsService.submitVerification(req.user.id, files ?? [], dto.description, dto.names);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('artist')
+  @Get('profile/me/verification')
+  getMyVerification(@Request() req) {
+    return this.artistsService.getMyVerification(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin/verifications')
+  adminGetPendingVerifications() {
+    return this.artistsService.adminGetPendingVerifications();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Patch('admin/:id/verification')
+  adminReviewVerification(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ReviewVerificationDto,
+  ) {
+    return this.artistsService.adminReviewVerification(id, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

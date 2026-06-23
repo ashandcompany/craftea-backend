@@ -3,10 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ShopsController } from './shops.controller.js';
 import { ShopsService } from './shops.service.js';
 import { Shop } from './entities/shop.entity.js';
+import { ShopShippingProfile } from './entities/shop-shipping-profile.entity.js';
+import { ShopShippingMethod } from './entities/shop-shipping-method.entity.js';
 import { ArtistProfile } from '../artists/entities/artist-profile.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Shop, ArtistProfile])],
+  imports: [TypeOrmModule.forFeature([Shop, ShopShippingProfile, ShopShippingMethod, ArtistProfile])],
   controllers: [ShopsController],
   providers: [ShopsService],
 })

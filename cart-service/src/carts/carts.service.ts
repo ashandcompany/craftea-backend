@@ -41,7 +41,11 @@ export class CartsService {
   async addItem(userId: number, dto: AddItemDto): Promise<Cart> {
     const cart = await this.getOrCreateCart(userId);
 
-    const existing = cart.items.find((i) => i.product_id === dto.product_id);
+    const existing = cart.items.find(
+      (i) =>
+        i.product_id === dto.product_id &&
+        (i.selected_options ?? null) === (dto.selected_options ?? null),
+    );
     if (existing) {
       existing.quantity += dto.quantity;
       await this.itemsRepo.save(existing);
@@ -50,6 +54,7 @@ export class CartsService {
         cart_id: cart.id,
         product_id: dto.product_id,
         quantity: dto.quantity,
+        selected_options: dto.selected_options ?? null,
       });
       await this.itemsRepo.save(item);
     }

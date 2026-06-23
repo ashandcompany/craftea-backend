@@ -1,4 +1,34 @@
 services:
+  # ───────────── API Gateway (Node.js) ─────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: craftea-api-gateway
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:3000
+      USER_SERVICE_URL: http://user-service:3010
+      ARTIST_SERVICE_URL: http://artist-service:3002
+      CATALOG_SERVICE_URL: http://catalog-service:3003
+      INTERACTION_SERVICE_URL: http://interaction-service:3004
+      ORDER_SERVICE_URL: http://order-service:3005
+      CART_SERVICE_URL: http://cart-service:3006
+      PAYMENT_SERVICE_URL: http://payment-service:3007
+      NOTIFICATION_SERVICE_URL: http://notification-service:3008
+    depends_on:
+      - user-service
+      - artist-service
+      - catalog-service
+      - interaction-service
+      - order-service
+      - cart-service
+      - payment-service
+      - notification-service
+
   # ───────────── PostgreSQL ─────────────
 
   db:
@@ -40,9 +70,9 @@ services:
     container_name: craftea-user-service
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3010:3010"
     environment:
-      PORT: 3001
+      PORT: 3010
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: craftea_users
@@ -70,6 +100,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_healthy
 
   # ───────────── Artist Service (NestJS) ─────────────
   artist-service:
@@ -82,8 +114,12 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
+    secrets:
+      - stripe_secret_key
     environment:
       PORT: 3002
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: craftea_artists
@@ -97,10 +133,14 @@ services:
       MINIO_BUCKET: artist-images
       MINIO_USE_SSL: "false"
       MINIO_PUBLIC_URL: http://localhost:9000
+      USER_SERVICE_URL: http://user-service:3010
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
     depends_on:
       db:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   # ───────────── Catalog Service (NestJS) ─────────────
@@ -164,8 +204,23 @@ services:
       DB_USER: craftea
       DB_PASS: craftea_pass
       JWT_SECRET: craftea_jwt_secret_dev
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: craftea_minio_secret
+      MINIO_BUCKET: review-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localhost:9000
+      USER_SERVICE_URL: http://user-service:3010
+      INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
+      APP_URL: http://localhost:3000
     depends_on:
       db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      rabbitmq:
         condition: service_healthy
 
   # ───────────── Order Service (NestJS) ─────────────
@@ -189,8 +244,15 @@ services:
       JWT_SECRET: craftea_jwt_secret_dev
       CATALOG_URL: http://catalog-service:3003
       ARTIST_URL: http://artist-service:3002
+      PAYMENT_URL: http://payment-service:3007
+      USER_SERVICE_URL: http://user-service:3010
+      INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
+      APP_URL: http://localhost:3000
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   # ───────────── Cart Service (NestJS) ─────────────
@@ -229,21 +291,59 @@ services:
       - "3007:3007"
     environment:
       PORT: 3007
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
+      INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: craftea_payments
       DB_USER: craftea
       DB_PASS: craftea_pass
       JWT_SECRET: craftea_jwt_secret_dev
-      SQUARE_BASE_URL: https://connect.squareupsandbox.com/v2
-      SQUARE_API_VERSION: "2026-01-22"
       ORDER_URL: http://order-service:3005
+      ARTIST_URL: http://artist-service:3002
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
     secrets:
-      - square_access_token
-      - square_location_id
+      - stripe_secret_key
+      - stripe_webhook_secret
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ───────────── Notification Service (NestJS) ─────────────
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_DIR: notification-service
+    container_name: craftea-notification-service
+    restart: unless-stopped
+    ports:
+      - "3008:3008"
+    environment:
+      PORT: 3008
+      RESEND_API_KEY: placeholder
+      EMAIL_FROM: noreply@craftea.local
+      ADMIN_EMAIL: admin@craftea.local
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      APP_URL: http://localhost:3000
+      RABBITMQ_URL: amqp://craftea:craftea_pass@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # ───────────── Mailhog (Dev email catcher) ─────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: craftea-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI → http://localhost:8025
 
   # ───────────── MinIO (Object Storage) ─────────────
   minio:
@@ -301,10 +401,10 @@ services:
       retries: 10
 
 secrets:
-  square_access_token:
-    file: ./docker/secrets/square_access_token.txt
-  square_location_id:
-    file: ./docker/secrets/square_location_id.txt
+  stripe_secret_key:
+    file: ./docker/secrets/stripe_secret_key.txt
+  stripe_webhook_secret:
+    file: ./docker/secrets/stripe_webhook_secret.txt
 
 volumes:
   postgres_data:

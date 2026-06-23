@@ -5,12 +5,21 @@ import { AppModule } from './app.module.js';
 
 /** Charge les Docker secrets dans process.env si les fichiers existent. */
 function loadSecrets() {
-  const secrets: Record<string, string> = {
-    SQUARE_ACCESS_TOKEN: '/run/secrets/square_access_token',
-    SQUARE_LOCATION_ID: '/run/secrets/square_location_id',
-  };
+  const secrets = [
+    {
+      envKey: 'STRIPE_SECRET_KEY',
+      fileKey: 'STRIPE_SECRET_KEY_FILE',
+      fallbackPath: '/run/secrets/stripe_secret_key',
+    },
+    {
+      envKey: 'STRIPE_WEBHOOK_SECRET',
+      fileKey: 'STRIPE_WEBHOOK_SECRET_FILE',
+      fallbackPath: '/run/secrets/stripe_webhook_secret',
+    },
+  ];
 
-  for (const [envKey, filePath] of Object.entries(secrets)) {
+  for (const { envKey, fileKey, fallbackPath } of secrets) {
+    const filePath = process.env[fileKey] ?? fallbackPath;
     if (!process.env[envKey] && existsSync(filePath)) {
       process.env[envKey] = readFileSync(filePath, 'utf8').trim();
     }
@@ -19,7 +28,7 @@ function loadSecrets() {
 
 async function bootstrap() {
   loadSecrets();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors();
   app.setGlobalPrefix('api');

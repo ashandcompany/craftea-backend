@@ -1,0 +1,87 @@
+# Docker Compose pour les tests E2E
+# Usage: docker-compose -f docker-compose.test.yml up -d
+
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Base de données PostgreSQL
+  # ─────────────────────────────────────────────────────────────────────────
+  postgres-test:
+    image: postgres:17-alpine
+    container_name: craftea-postgres-test
+    environment:
+      POSTGRES_USER: craftea
+      POSTGRES_PASSWORD: craftea
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"  # Port différent pour ne pas interférer avec dev
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U craftea"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Redis
+  # ─────────────────────────────────────────────────────────────────────────
+  redis-test:
+    image: redis:alpine
+    container_name: craftea-redis-test
+    ports:
+      - "6380:6379"  # Port différent
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # RabbitMQ
+  # ─────────────────────────────────────────────────────────────────────────
+  rabbitmq-test:
+    image: rabbitmq:3-management-alpine
+    container_name: craftea-rabbitmq-test
+    environment:
+      RABBITMQ_DEFAULT_USER: craftea
+      RABBITMQ_DEFAULT_PASS: craftea
+    ports:
+      - "5673:5672"   # AMQP - port différent
+      - "15673:15672" # Management UI - port différent
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MinIO (Object Storage)
+  # ─────────────────────────────────────────────────────────────────────────
+  minio-test:
+    image: minio/minio
+    container_name: craftea-minio-test
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9001:9000"   # API - port différent
+      - "9002:9001"   # Console - port différent
+    volumes:
+      - minio-test-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-test-data:
+  minio-test-data:
+
+networks:
+  default:
+    name: craftea-test-network

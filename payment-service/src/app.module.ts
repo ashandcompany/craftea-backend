@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AuthModule } from './auth/auth.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
+import { PaymentEventsModule } from './rabbitmq/payment-events.module.js';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PaymentsModule } from './payments/payments.module.js';
       }),
     }),
     AuthModule,
+    PaymentEventsModule,
     PaymentsModule,
   ],
   controllers: [AppController],

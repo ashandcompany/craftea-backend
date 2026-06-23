@@ -8,6 +8,7 @@ import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { User } from '../users/entities/user.entity.js';
 import { Log } from '../logs/entities/log.entity.js';
+import { EmailModule } from '../email/email.module.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { Log } from '../logs/entities/log.entity.js';
         signOptions: { expiresIn: cfg.get('JWT_EXPIRES_IN', '15m') },
       }),
     }),
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

@@ -23,15 +23,26 @@ export class ProductsService {
   ) {}
 
   async create(dto: CreateProductDto, files: Express.Multer.File[]) {
+    const variants = dto.variants?.length ? dto.variants : null;
+    const computedStock = variants
+      ? variants.reduce((s, v) => s + v.options.reduce((os, o) => os + o.stock, 0), 0)
+      : (dto.stock ?? 0);
+
     const product = this.productsRepo.create({
       shop_id: dto.shop_id,
       category_id: dto.category_id,
       title: dto.title,
       description: dto.description,
       price: dto.price,
-      stock: dto.stock,
-      creation_time: dto.creation_time,
-      delivery_time: dto.delivery_time,
+      stock: computedStock,
+      variants,
+      processing_time_min: dto.processing_time_min,
+      processing_time_max: dto.processing_time_max,
+      processing_time_unit: dto.processing_time_unit,
+      delivery_time_min: dto.delivery_time_min,
+      delivery_time_max: dto.delivery_time_max,
+      delivery_time_unit: dto.delivery_time_unit,
+      shipping_fee: dto.shipping_fee ?? null,
     });
     await this.productsRepo.save(product);
 
@@ -73,34 +84,52 @@ export class ProductsService {
     const limit = query.limit || 20;
     const offset = (page - 1) * limit;
 
-    const qb = this.productsRepo
+    // Step 1 — count + paginated IDs on the bare table (no relation JOINs)
+    // to avoid the TypeORM skip/take bug with leftJoinAndSelect.
+    const idsQb = this.productsRepo
+      .createQueryBuilder('product')
+      .select('product.id', 'id');
+
+    if (query.include_inactive !== 'true') {
+      idsQb.andWhere('product.is_active = :active', { active: true });
+    }
+    if (query.category_id) {
+      idsQb.andWhere('product.category_id = :catId', { catId: query.category_id });
+    }
+    if (query.shop_id) {
+      idsQb.andWhere('product.shop_id = :shopId', { shopId: query.shop_id });
+    }
+    if (query.search) {
+      idsQb.andWhere('product.title ILIKE :search', { search: `%${query.search}%` });
+    }
+    if (query.tag) {
+      // Join only for filtering, no select
+      idsQb
+        .innerJoin('product.tags', 'tag_filter')
+        .andWhere('tag_filter.id = :tagId', { tagId: query.tag });
+    }
+
+    idsQb.orderBy('product.created_at', 'DESC');
+
+    const total = await idsQb.getCount();
+
+    const rawIds = await idsQb.offset(offset).limit(limit).getRawMany<{ id: number }>();
+    const ids = rawIds.map((r) => Number(r.id));
+
+    if (ids.length === 0) {
+      return { total, page, limit, data: [] };
+    }
+
+    // Step 2 — load full entities with relations for the selected IDs only
+    const rows = await this.productsRepo
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.images', 'images')
       .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.tags', 'tags');
-
-    if (query.include_inactive !== 'true') {
-      qb.andWhere('product.is_active = :active', { active: true });
-    }
-    if (query.category_id) {
-      qb.andWhere('product.category_id = :catId', { catId: query.category_id });
-    }
-    if (query.shop_id) {
-      qb.andWhere('product.shop_id = :shopId', { shopId: query.shop_id });
-    }
-    if (query.search) {
-      qb.andWhere('product.title ILIKE :search', { search: `%${query.search}%` });
-    }
-    if (query.tag) {
-      qb.andWhere('tags.id = :tagId', { tagId: query.tag });
-    }
-
-    qb.orderBy('product.created_at', 'DESC')
+      .leftJoinAndSelect('product.tags', 'tags')
+      .where('product.id IN (:...ids)', { ids })
+      .orderBy('product.created_at', 'DESC')
       .addOrderBy('images.position', 'ASC')
-      .skip(offset)
-      .take(limit);
-
-    const [rows, total] = await qb.getManyAndCount();
+      .getMany();
 
     return { total, page, limit, data: rows };
   }
@@ -126,11 +155,21 @@ export class ProductsService {
     // Update scalar fields
     const fields: (keyof UpdateProductDto)[] = [
       'title', 'description', 'price', 'stock', 'category_id',
-      'is_active', 'creation_time', 'delivery_time',
+      'is_active', 'processing_time_min', 'processing_time_max', 'processing_time_unit', 'delivery_time_min', 'delivery_time_max', 'delivery_time_unit', 'shipping_fee',
     ];
     for (const f of fields) {
       if (dto[f] !== undefined) (product as any)[f] = dto[f];
     }
+
+    // Handle variants
+    if (dto.variants !== undefined) {
+      const variants = dto.variants?.length ? dto.variants : null;
+      product.variants = variants;
+      if (variants) {
+        product.stock = variants.reduce((s, v) => s + v.options.reduce((os, o) => os + o.stock, 0), 0);
+      }
+    }
+
     await this.productsRepo.save(product);
 
     // Delete images
@@ -229,17 +268,35 @@ export class ProductsService {
     return { id: product.id, stock: product.stock };
   }
 
-  async decrementStock(id: number, quantity: number) {
+  async decrementStock(id: number, quantity: number, selectedOptions?: Record<string, string>) {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException('Produit introuvable');
 
-    if (product.stock < quantity) {
-      throw new BadRequestException(
-        `Stock insuffisant pour le produit ${id} (dispo: ${product.stock}, demandé: ${quantity})`,
+    if (selectedOptions && product.variants && product.variants.length > 0) {
+      for (const [variantName, optionLabel] of Object.entries(selectedOptions)) {
+        const variant = product.variants.find((v) => v.name === variantName);
+        if (!variant) continue;
+        const option = variant.options.find((o) => o.label === optionLabel);
+        if (!option) continue;
+        if (option.stock < quantity) {
+          throw new BadRequestException(
+            `Stock insuffisant pour l'option "${optionLabel}" (dispo: ${option.stock}, demandé: ${quantity})`,
+          );
+        }
+        option.stock -= quantity;
+      }
+      product.stock = product.variants.reduce(
+        (s, v) => s + v.options.reduce((os, o) => os + o.stock, 0), 0,
       );
+    } else {
+      if (product.stock < quantity) {
+        throw new BadRequestException(
+          `Stock insuffisant pour le produit ${id} (dispo: ${product.stock}, demandé: ${quantity})`,
+        );
+      }
+      product.stock -= quantity;
     }
 
-    product.stock -= quantity;
     await this.productsRepo.save(product);
 
     await this.redis.invalidateCache(`products:${product.id}`);

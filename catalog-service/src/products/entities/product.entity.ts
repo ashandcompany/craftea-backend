@@ -10,9 +10,9 @@ import {
   JoinTable,
   JoinColumn,
 } from 'typeorm';
-import { Category } from '../../categories/entities/category.entity.js';
-import { Tag } from '../../tags/entities/tag.entity.js';
-import { ProductImage } from './product-image.entity.js';
+import { Category } from '../../categories/entities/category.entity';
+import { Tag } from '../../tags/entities/tag.entity';
+import { ProductImage } from './product-image.entity';
 
 @Entity('products')
 export class Product {
@@ -40,11 +40,28 @@ export class Product {
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
-  creation_time: number;
+  @Column({ type: 'int', nullable: true })
+  processing_time_min: number;
 
-  @Column({ nullable: true })
-  delivery_time: number;
+  @Column({ type: 'int', nullable: true })
+  processing_time_max: number;
+
+  @Column({ type: 'simple-enum', enum: ['days', 'weeks'], nullable: true })
+  processing_time_unit: 'days' | 'weeks';
+
+  /** Override livraison produit — null = utiliser les modes de la boutique */
+  @Column({ type: 'int', nullable: true })
+  delivery_time_min: number;
+
+  @Column({ type: 'int', nullable: true })
+  delivery_time_max: number;
+
+  @Column({ type: 'simple-enum', enum: ['days', 'weeks'], nullable: true })
+  delivery_time_unit: 'days' | 'weeks';
+
+  /** Frais de livraison spécifiques au produit (override boutique). null = utiliser les frais boutique */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  shipping_fee: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
@@ -58,6 +75,9 @@ export class Product {
 
   @OneToMany(() => ProductImage, (img) => img.product, { cascade: true })
   images: ProductImage[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  variants: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }> | null;
 
   @ManyToMany(() => Tag, (tag) => tag.products, { cascade: true })
   @JoinTable({

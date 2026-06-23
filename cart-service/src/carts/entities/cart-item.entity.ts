@@ -21,6 +21,9 @@ export class CartItem {
   @Column({ default: 1 })
   quantity: number;
 
+  @Column({ type: 'text', nullable: true })
+  selected_options: string | null;
+
   @ManyToOne(() => Cart, (cart) => cart.items, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'cart_id' })
   cart: Cart;

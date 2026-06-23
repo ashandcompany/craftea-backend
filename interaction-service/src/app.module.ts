@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module.js';
 import { FavoritesModule } from './favorites/favorites.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
+import { MessagingModule } from './messaging/messaging.module.js';
+import { MinioModule } from './minio/minio.module.js';
 import { AppController } from './app.controller.js';
 
 @Module({
@@ -24,8 +26,10 @@ import { AppController } from './app.controller.js';
       }),
     }),
     AuthModule,
+    MinioModule,
     FavoritesModule,
     ReviewsModule,
+    MessagingModule,
   ],
   controllers: [AppController],
 })

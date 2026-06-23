@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNumber,
@@ -6,7 +5,6 @@ import {
   IsPositive,
   IsString,
   Length,
-  Min,
 } from 'class-validator';
 
 export class CreatePaymentDto {
@@ -24,5 +22,11 @@ export class CreatePaymentDto {
   currency?: string = 'EUR';
 
   @IsString()
-  source_id: string;
+  @IsOptional()
+  artist_stripe_account_id?: string;
+}
+
+export class ConfirmPaymentDto {
+  @IsString()
+  payment_intent_id: string;
 }

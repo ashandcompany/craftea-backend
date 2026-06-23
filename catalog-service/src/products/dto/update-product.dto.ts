@@ -5,6 +5,7 @@ import {
   IsInt,
   IsBoolean,
   IsArray,
+  IsIn,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -43,17 +44,42 @@ export class UpdateProductDto {
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
-  creation_time?: number;
+  processing_time_min?: number;
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
-  delivery_time?: number;
+  processing_time_max?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['days', 'weeks'])
+  processing_time_unit?: 'days' | 'weeks';
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  delivery_time_min?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  delivery_time_max?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['days', 'weeks'])
+  delivery_time_unit?: 'days' | 'weeks';
 
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
   @IsArray()
   tags?: number[];
+
+  @IsOptional()
+  @Transform(({ value }) => (value != null ? parseFloat(value) : undefined))
+  @IsNumber()
+  shipping_fee?: number;
 
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
@@ -64,4 +90,8 @@ export class UpdateProductDto {
   @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
   @IsArray()
   image_order?: number[];
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  variants?: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }>;
 }
