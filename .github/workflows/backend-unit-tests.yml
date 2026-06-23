@@ -1,0 +1,112 @@
+name: Tests Unitaires Backend
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Les jobs sont marqués continue-on-error: true — un échec n'est pas bloquant
+# tant que le projet est en cours de développement.
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # payment-service
+  # ─────────────────────────────────────────────────────────────────────────
+  unit-tests-payment:
+    name: "Tests unitaires — payment-service"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: payment-service/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+        working-directory: payment-service
+
+      - name: Lancer les tests unitaires
+        run: npm test -- --forceExit --no-coverage
+        working-directory: payment-service
+        env:
+          NODE_ENV: test
+          STRIPE_SECRET_KEY: sk_test_placeholder
+          STRIPE_WEBHOOK_SECRET: whsec_placeholder
+
+      - name: Upload résultats (en cas d'échec)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: payment-service-test-results
+          path: payment-service/test-results/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # artist-service
+  # ─────────────────────────────────────────────────────────────────────────
+  unit-tests-artist:
+    name: "Tests unitaires — artist-service"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: artist-service/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+        working-directory: artist-service
+
+      - name: Lancer les tests unitaires
+        run: npm test -- --forceExit --no-coverage
+        working-directory: artist-service
+        env:
+          NODE_ENV: test
+          STRIPE_SECRET_KEY: sk_test_placeholder
+
+      - name: Upload résultats (en cas d'échec)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: artist-service-test-results
+          path: artist-service/test-results/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Résumé visible dans l'onglet Actions
+  # ─────────────────────────────────────────────────────────────────────────
+  summary:
+    name: "Résumé tests unitaires"
+    runs-on: ubuntu-latest
+    needs: [unit-tests-payment, unit-tests-artist]
+    if: always()
+
+    steps:
+      - name: Afficher les résultats
+        run: |
+          echo "payment-service : ${{ needs.unit-tests-payment.result }}"
+          echo "artist-service  : ${{ needs.unit-tests-artist.result }}"
+
+          if [ "${{ needs.unit-tests-payment.result }}" = "failure" ] || \
+             [ "${{ needs.unit-tests-artist.result }}" = "failure" ]; then
+            echo ""
+            echo "⚠️  Des tests ont échoué — non-bloquant (WIP)"
+          else
+            echo ""
+            echo "✅ Tous les tests unitaires sont verts"
+          fi
