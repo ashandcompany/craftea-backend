@@ -30,8 +30,8 @@ export class MinioService implements OnModuleInit {
     if (!exists) {
       await this.client.makeBucket(this.bucket);
     }
-    // Always enforce the restricted policy: only objects under the public/ prefix
-    // are publicly readable. Verification documents (verifications/) are private.
+    // All objects are publicly readable except verifications/ (identity documents).
+    // The explicit Deny overrides the Allow for anonymous access, keeping docs private.
     const policy = {
       Version: '2012-10-17',
       Statement: [
@@ -39,12 +39,18 @@ export class MinioService implements OnModuleInit {
           Effect: 'Allow',
           Principal: { AWS: ['*'] },
           Action: ['s3:GetObject'],
-          Resource: [`arn:aws:s3:::${this.bucket}/public/*`],
+          Resource: [`arn:aws:s3:::${this.bucket}/*`],
+        },
+        {
+          Effect: 'Deny',
+          Principal: { AWS: ['*'] },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${this.bucket}/verifications/*`],
         },
       ],
     };
     await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
-    this.logger.log(`Bucket "${this.bucket}" ready with public-read on public/* only`);
+    this.logger.log(`Bucket "${this.bucket}" ready with public-read on * except verifications/`);
   }
 
   async uploadFile(file: Express.Multer.File): Promise<string> {
