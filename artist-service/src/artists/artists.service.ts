@@ -227,7 +227,6 @@ export class ArtistsService {
         // Manual payout schedule: funds stay in the artist's Stripe balance
         // until they explicitly request a payout (Vinted-style wallet).
         const account = await this.stripe.accounts.create({
-          type: 'express',
           controller: {
             fees: { payer: 'application' },
             losses: { payments: 'application' },
