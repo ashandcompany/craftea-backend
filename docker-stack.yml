@@ -135,8 +135,10 @@ services:
       MINIO_PUBLIC_URL: https://craftea.ddnsfree.com:9000
       USER_SERVICE_URL: http://user-service:3010
       RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      FRONTEND_URL: https://craftea.ddnsfree.com
     networks:
       - internal
+      - public
     deploy:
       replicas: 1
       resources:
@@ -287,6 +289,7 @@ services:
       RABBITMQ_URL: amqp://craftea:${RABBITMQ_PASSWORD}@rabbitmq:5672
     networks:
       - internal
+      - public
     deploy:
       replicas: 1
       resources:
