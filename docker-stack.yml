@@ -115,10 +115,10 @@ services:
   artist-service:
     image: ${REGISTRY}/craftea-artist-service:${IMAGE_TAG}
     secrets:
-      - stripe_secret_key
+      - stripe_secret_key_v2
     environment:
       PORT: 3002
-      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key_v2
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       DB_HOST: db
       DB_PORT: 5432
@@ -271,12 +271,12 @@ services:
   payment-service:
     image: ${REGISTRY}/craftea-payment-service:${IMAGE_TAG}
     secrets:
-      - stripe_secret_key
-      - stripe_webhook_secret
+      - stripe_secret_key_v2
+      - stripe_webhook_secret_v2
     environment:
       PORT: 3007
-      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
-      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key_v2
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret_v2
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       DB_HOST: db
       DB_PORT: 5432
@@ -427,9 +427,9 @@ services:
       start_period: 30s
 
 secrets:
-  stripe_secret_key:
+  stripe_secret_key_v2:
     external: true
-  stripe_webhook_secret:
+  stripe_webhook_secret_v2:
     external: true
 
 networks:

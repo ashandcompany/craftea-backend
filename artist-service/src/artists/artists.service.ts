@@ -53,7 +53,7 @@ export class ArtistsService {
     if (!secretKey) {
       const secretKeyFile = this.configService.get<string>(
         'STRIPE_SECRET_KEY_FILE',
-        '/run/secrets/stripe_secret_key',
+        '/run/secrets/stripe_secret_key_v2',
       );
       if (secretKeyFile && existsSync(secretKeyFile)) {
         secretKey = readFileSync(secretKeyFile, 'utf8').trim();

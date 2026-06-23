@@ -9,12 +9,12 @@ function loadSecrets() {
     {
       envKey: 'STRIPE_SECRET_KEY',
       fileKey: 'STRIPE_SECRET_KEY_FILE',
-      fallbackPath: '/run/secrets/stripe_secret_key',
+      fallbackPath: '/run/secrets/stripe_secret_key_v2',
     },
     {
       envKey: 'STRIPE_WEBHOOK_SECRET',
       fileKey: 'STRIPE_WEBHOOK_SECRET_FILE',
-      fallbackPath: '/run/secrets/stripe_webhook_secret',
+      fallbackPath: '/run/secrets/stripe_webhook_secret_v2',
     },
   ];
 
