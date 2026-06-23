@@ -30,6 +30,7 @@ services:
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       NEXT_PUBLIC_APP_URL: https://craftea.ddnsfree.com
       NEXTAUTH_URL: https://craftea.ddnsfree.com
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "3000:3000"
     networks:
