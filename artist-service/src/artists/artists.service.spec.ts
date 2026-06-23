@@ -4,8 +4,10 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { ArtistsService } from './artists.service';
 import { ArtistProfile } from './entities/artist-profile.entity';
+import { ArtistVerificationDocument } from './entities/artist-verification-document.entity';
 import { MinioService } from '../minio/minio.service';
 import { ConfigService } from '@nestjs/config';
+import { ArtistEventsPublisher } from '../rabbitmq/artist-events.publisher';
 import { CreateArtistDto } from './dto/create-artist.dto';
 import { UpdateArtistDto } from './dto/update-artist.dto';
 
@@ -51,6 +53,15 @@ describe('ArtistsService', () => {
           },
         },
         {
+          provide: getRepositoryToken(ArtistVerificationDocument),
+          useValue: {
+            findOne: jest.fn(),
+            find: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
           provide: MinioService,
           useValue: {
             uploadFile: jest.fn(),
@@ -72,6 +83,12 @@ describe('ArtistsService', () => {
               }
               return defaultValue;
             }),
+          },
+        },
+        {
+          provide: ArtistEventsPublisher,
+          useValue: {
+            publish: jest.fn(),
           },
         },
       ],
@@ -381,11 +398,10 @@ describe('ArtistsService', () => {
       const result = await service.createStripeAccount(100);
 
       expect((service as any).stripe.accounts.create).toHaveBeenCalledWith({
-        type: 'express',
         controller: {
           fees: { payer: 'application' },
           losses: { payments: 'application' },
-          requirement_collection: 'application',
+          requirement_collection: 'stripe',
           stripe_dashboard: { type: 'express' },
         },
         capabilities: {

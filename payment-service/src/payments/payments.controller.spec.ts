@@ -4,6 +4,10 @@ import { PaymentsService } from './payments.service';
 import { PaymentStatus } from './entities/payment.entity';
 import { WalletService } from './wallet.service';
 import { StripeService } from './stripe.service';
+import { ConfigService } from '@nestjs/config';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { ProcessedWebhookEvent } from './entities/processed-webhook-event.entity';
+import { PaymentEventsPublisher } from '../rabbitmq/payment-events.publisher';
 
 describe('PaymentsController', () => {
   let controller: PaymentsController;
@@ -62,6 +66,26 @@ describe('PaymentsController', () => {
           provide: StripeService,
           useValue: {
             constructWebhookEvent: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue(''),
+          },
+        },
+        {
+          provide: PaymentEventsPublisher,
+          useValue: {
+            publish: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(ProcessedWebhookEvent),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            create: jest.fn(),
           },
         },
       ],

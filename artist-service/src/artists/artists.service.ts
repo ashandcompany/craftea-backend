@@ -230,8 +230,8 @@ export class ArtistsService {
           controller: {
             fees: { payer: 'application' },
             losses: { payments: 'application' },
-            requirement_collection: 'application',
-            stripe_dashboard: { type: 'none' },
+            requirement_collection: 'stripe',
+            stripe_dashboard: { type: 'express' },
           },
           capabilities: {
             card_payments: { requested: true },
