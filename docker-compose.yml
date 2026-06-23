@@ -52,6 +52,21 @@ services:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_SECRET: craftea_jwt_refresh_secret_dev
       JWT_REFRESH_EXPIRES_IN: 7d
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: craftea_minio
+      MINIO_SECRET_KEY: craftea_minio_secret
+      MINIO_BUCKET: user-images
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localhost:9000
+      RESEND_API_KEY: placeholder
+      EMAIL_FROM: noreply@craftea.local
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      APP_URL: http://localhost:3000
+      INTERNAL_SERVICE_TOKEN: craftea_internal_token_dev
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     depends_on:
       db:
         condition: service_healthy
