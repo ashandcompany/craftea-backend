@@ -336,6 +336,20 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # ───────────── Umami (Analytics) ─────────────
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: craftea-umami
+    restart: unless-stopped
+    ports:
+      - "3009:3000"
+    environment:
+      DATABASE_URL: postgresql://craftea:craftea_pass@db:5432/craftea_umami
+      APP_SECRET: craftea_umami_secret_dev
+    depends_on:
+      db:
+        condition: service_healthy
+
   # ───────────── Mailhog (Dev email catcher) ─────────────
   mailhog:
     image: mailhog/mailhog:latest

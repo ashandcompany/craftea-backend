@@ -8,6 +8,7 @@ CREATE DATABASE craftea_interactions;
 CREATE DATABASE craftea_orders;
 CREATE DATABASE craftea_carts;
 CREATE DATABASE craftea_payments;
+CREATE DATABASE craftea_umami;
 
 -- Accorder tous les privilèges à l'utilisateur craftea
 GRANT ALL PRIVILEGES ON DATABASE craftea_users TO craftea;
@@ -17,3 +18,4 @@ GRANT ALL PRIVILEGES ON DATABASE craftea_interactions TO craftea;
 GRANT ALL PRIVILEGES ON DATABASE craftea_orders TO craftea;
 GRANT ALL PRIVILEGES ON DATABASE craftea_carts TO craftea;
 GRANT ALL PRIVILEGES ON DATABASE craftea_payments TO craftea;
+GRANT ALL PRIVILEGES ON DATABASE craftea_umami TO craftea;

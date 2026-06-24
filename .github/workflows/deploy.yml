@@ -29,6 +29,7 @@ env:
 #   RESEND_API_KEY          re_...
 #   EMAIL_FROM              noreply@craftea.fr
 #   ADMIN_EMAIL             admin@craftea.fr
+#   UMAMI_APP_SECRET        openssl rand -base64 32
 # ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -167,6 +168,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          UMAMI_APP_SECRET: ${{ secrets.UMAMI_APP_SECRET }}
         run: |
           docker stack deploy \
             -c docker-stack.yml \

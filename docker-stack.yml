@@ -320,6 +320,26 @@ services:
         condition: on-failure
         max_attempts: 5
 
+  # ── Umami (Analytics) ─────────────────────────────────────────────────────
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    environment:
+      DATABASE_URL: postgresql://craftea:${DB_PASSWORD}@db:5432/craftea_umami
+      APP_SECRET: ${UMAMI_APP_SECRET}
+    ports:
+      - "127.0.0.1:3009:3000"
+    networks:
+      - internal
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
   db:
     image: ${REGISTRY}/craftea-postgres:${IMAGE_TAG}
