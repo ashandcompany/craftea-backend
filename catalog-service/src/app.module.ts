@@ -25,7 +25,7 @@ import { AppController } from './app.controller.js';
         password: cfg.get<string>('DB_PASS', 'craftea_pass'),
         database: cfg.get<string>('DB_NAME', 'craftea_catalog'),
         autoLoadEntities: true,
-        synchronize: true,
+        synchronize: cfg.get('NODE_ENV') !== 'production',
       }),
     }),
     AuthModule,

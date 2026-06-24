@@ -12,7 +12,7 @@ export class RegisterDto {
   @IsEmail({}, { message: 'Email invalide' })
   email: string;
 
-  @MinLength(6, { message: 'Mot de passe min 6 caractères' })
+  @MinLength(8, { message: 'Mot de passe min 8 caractères' })
   password: string;
 
   @IsOptional()

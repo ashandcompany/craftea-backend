@@ -20,7 +20,7 @@ import { PaymentEventsModule } from './rabbitmq/payment-events.module.js';
         password: cfg.get<string>('DB_PASS', 'craftea_pass'),
         database: cfg.get<string>('DB_NAME', 'craftea_payments'),
         autoLoadEntities: true,
-        synchronize: true, // dev only
+        synchronize: cfg.get('NODE_ENV') !== 'production',
       }),
     }),
     AuthModule,

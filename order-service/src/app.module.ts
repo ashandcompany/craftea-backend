@@ -20,7 +20,7 @@ import { OrderEventsModule } from './rabbitmq/order-events.module.js';
         password: cfg.get<string>('DB_PASS', 'craftea_pass'),
         database: cfg.get<string>('DB_NAME', 'craftea_orders'),
         autoLoadEntities: true,
-        synchronize: true, // dev only
+        synchronize: cfg.get('NODE_ENV') !== 'production',
       }),
     }),
     AuthModule,

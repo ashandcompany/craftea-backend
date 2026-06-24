@@ -19,7 +19,7 @@ import { CartsModule } from './carts/carts.module.js';
         password: cfg.get<string>('DB_PASS', 'craftea_pass'),
         database: cfg.get<string>('DB_NAME', 'craftea_carts'),
         autoLoadEntities: true,
-        synchronize: true, // dev only
+        synchronize: cfg.get('NODE_ENV') !== 'production',
       }),
     }),
     AuthModule,

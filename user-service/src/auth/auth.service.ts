@@ -76,7 +76,7 @@ export class AuthService {
     const exists = await this.usersRepo.findOne({ where: { email: dto.email } });
     if (exists) throw new ConflictException('Email déjà utilisé');
 
-    const hash = await bcrypt.hash(dto.password, 10);
+    const hash = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
       firstname: dto.firstname,
       lastname: dto.lastname,
@@ -245,7 +245,7 @@ export class AuthService {
           firstname: given_name || 'Utilisateur',
           lastname: family_name || 'Google',
           email,
-          password: await bcrypt.hash(randomBytes(32).toString('hex'), 10), // Random password
+          password: await bcrypt.hash(randomBytes(32).toString('hex'), 12), // Random password
           role: UserRole.BUYER,
           avatar_url: picture,
         });

@@ -10,6 +10,8 @@ import { PaymentsService } from './payments.service';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { StripeService } from './stripe.service';
 import { WalletService } from './wallet.service';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 
 // Mock uuid to return a predictable value
 jest.mock('uuid', () => ({ v4: () => 'mock-uuid-1234' }));
@@ -69,6 +71,19 @@ describe('PaymentsService', () => {
           useValue: {
             credit: jest.fn(),
             requestPayout: jest.fn(),
+          },
+        },
+        {
+          provide: HttpService,
+          useValue: {
+            get: jest.fn(),
+            post: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue(''),
           },
         },
       ],

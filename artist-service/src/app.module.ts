@@ -22,7 +22,7 @@ import { ArtistEventsModule } from './rabbitmq/artist-events.module.js';
         password: cfg.get<string>('DB_PASS', 'craftea_pass'),
         database: cfg.get<string>('DB_NAME', 'craftea_artists'),
         autoLoadEntities: true,
-        synchronize: true, // dev only
+        synchronize: cfg.get('NODE_ENV') !== 'production',
       }),
     }),
     ArtistEventsModule,
