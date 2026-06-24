@@ -324,10 +324,10 @@ services:
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
     environment:
-      DATABASE_URL: postgresql://craftea:${DB_PASSWORD}@db:5432/craftea_umami
+      DATABASE_URL: ${UMAMI_DATABASE_URL}
       APP_SECRET: ${UMAMI_APP_SECRET}
     ports:
-      - "127.0.0.1:3009:3000"
+      - "127.0.0.1:3019:3000"
     networks:
       - internal
     deploy:

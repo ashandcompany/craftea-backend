@@ -30,6 +30,8 @@ env:
 #   EMAIL_FROM              noreply@craftea.fr
 #   ADMIN_EMAIL             admin@craftea.fr
 #   UMAMI_APP_SECRET        openssl rand -base64 32
+#   UMAMI_DATABASE_URL      postgresql://craftea:<DB_PASSWORD_URL_ENCODED>@db:5432/craftea_umami
+#                           (encoder le mot de passe : python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "MOT_DE_PASSE")
 # ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -169,6 +171,7 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           UMAMI_APP_SECRET: ${{ secrets.UMAMI_APP_SECRET }}
+          UMAMI_DATABASE_URL: ${{ secrets.UMAMI_DATABASE_URL }}
         run: |
           docker stack deploy \
             -c docker-stack.yml \
