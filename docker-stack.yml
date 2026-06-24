@@ -326,6 +326,7 @@ services:
     environment:
       DATABASE_URL: ${UMAMI_DATABASE_URL}
       APP_SECRET: ${UMAMI_APP_SECRET}
+      BASE_PATH: /stats
     ports:
       - "127.0.0.1:3019:3000"
     networks:
