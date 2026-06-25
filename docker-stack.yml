@@ -13,6 +13,8 @@ version: "3.9"
 #   RESEND_API_KEY / EMAIL_FROM / ADMIN_EMAIL
 #   INTERNAL_SERVICE_TOKEN
 #   MINIO_SECRET_KEY
+#   UMAMI_DATABASE_URL — ex: postgresql://craftea:<DB_PASSWORD>@db:5432/craftea_umami
+#   UMAMI_APP_SECRET   — chaîne aléatoire ≥ 32 caractères (openssl rand -hex 32)
 #
 # Secrets Docker Swarm à créer une seule fois sur le serveur (voir deploy/init-secrets.sh) :
 #   stripe_secret_key / stripe_webhook_secret
@@ -326,7 +328,6 @@ services:
     environment:
       DATABASE_URL: ${UMAMI_DATABASE_URL}
       APP_SECRET: ${UMAMI_APP_SECRET}
-      BASE_PATH: /stats
     ports:
       - "127.0.0.1:3019:3000"
     networks:
