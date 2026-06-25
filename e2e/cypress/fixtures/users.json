@@ -1,0 +1,14 @@
+{
+  "buyer": {
+    "firstname": "Acheteur",
+    "lastname": "Test",
+    "email": "buyer@craftea-ci.local",
+    "password": "TestPassword123!"
+  },
+  "artist": {
+    "firstname": "Artisan",
+    "lastname": "Test",
+    "email": "artist@craftea-ci.local",
+    "password": "TestPassword123!"
+  }
+}

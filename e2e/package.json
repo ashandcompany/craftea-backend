@@ -1,0 +1,13 @@
+{
+  "name": "craftea-e2e",
+  "private": true,
+  "scripts": {
+    "test": "cypress run --headless --browser chrome",
+    "test:open": "cypress open",
+    "test:ci": "cypress run --headless --browser chrome --reporter junit --reporter-options mochaFile=results/junit.xml"
+  },
+  "devDependencies": {
+    "cypress": "^13.17.0",
+    "typescript": "^5.7.3"
+  }
+}
