@@ -22,14 +22,15 @@ describe('PaymentsService', () => {
   let stripeService: jest.Mocked<StripeService>;
   let walletService: jest.Mocked<WalletService>;
 
+  // Commission : calculateFee(5000) = Math.round(5000*0.05) + 25 = 275
   const mockPayment: Payment = {
     id: 1,
     user_id: 100,
     order_id: 10,
     amount: 50,
     amount_cents: 5000,
-    platform_fee_cents: 500,
-    artist_amount_cents: 4500,
+    platform_fee_cents: 275,
+    artist_amount_cents: 4725,
     artist_stripe_account_id: 'acct_test_artist',
     currency: 'EUR',
     status: PaymentStatus.PENDING,
@@ -78,6 +79,7 @@ describe('PaymentsService', () => {
           useValue: {
             get: jest.fn(),
             post: jest.fn(),
+            patch: jest.fn(),
           },
         },
         {
@@ -113,6 +115,7 @@ describe('PaymentsService', () => {
 
       const result = await service.createIntent(dto, 100);
 
+      // destination charge : applicationFeeAmount + transferDestination ajoutés quand artist account présent
       expect(stripeService.createPaymentIntent).toHaveBeenCalledWith({
         amount: 5000,
         currency: 'EUR',
@@ -121,8 +124,10 @@ describe('PaymentsService', () => {
           user_id: '100',
           order_id: '10',
           artistStripeAccountId: 'acct_test_artist',
-          platformFee: '500',
+          platformFee: '275',
         },
+        applicationFeeAmount: 275,
+        transferDestination: 'acct_test_artist',
       });
       expect(paymentsRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -130,8 +135,8 @@ describe('PaymentsService', () => {
           order_id: 10,
           amount: 50,
           amount_cents: 5000,
-          platform_fee_cents: 500,
-          artist_amount_cents: 4500,
+          platform_fee_cents: 275,
+          artist_amount_cents: 4725,
           artist_stripe_account_id: 'acct_test_artist',
           currency: 'EUR',
           status: PaymentStatus.PENDING,
@@ -153,11 +158,12 @@ describe('PaymentsService', () => {
 
       await service.createIntent({ amount: 25 }, 100);
 
+      // calculateFee(2500) = Math.round(2500*0.05) + 25 = 150, pas de destination charge sans artist account
       expect(stripeService.createPaymentIntent).toHaveBeenCalledWith(expect.objectContaining({
         currency: 'EUR',
         metadata: expect.objectContaining({
           artistStripeAccountId: '',
-          platformFee: '250',
+          platformFee: '150',
         }),
       }));
     });
@@ -184,8 +190,11 @@ describe('PaymentsService', () => {
         ],
       });
 
-      expect(walletService.credit).toHaveBeenNthCalledWith(1, 5, 2700, 10);
-      expect(walletService.credit).toHaveBeenNthCalledWith(2, 7, 1800, 10);
+      // artist_amount_cents = 4725 ; grossTotal = 5000
+      // artiste 5 : floor(4725 * 3000/5000) = 2835
+      // artiste 7 : floor(4725 * 2000/5000) = 1890
+      expect(walletService.credit).toHaveBeenNthCalledWith(1, 5, 2835, 10);
+      expect(walletService.credit).toHaveBeenNthCalledWith(2, 7, 1890, 10);
       expect((result as Payment).wallet_credited).toBe(true);
     });
 
