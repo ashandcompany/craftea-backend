@@ -14,6 +14,9 @@ import { UpdateArtistDto } from './dto/update-artist.dto';
 describe('ArtistsService', () => {
   let service: ArtistsService;
   let artistsRepository: jest.Mocked<Repository<ArtistProfile>>;
+  let verificationDocsRepository: jest.Mocked<
+    Repository<ArtistVerificationDocument>
+  >;
   let minioService: jest.Mocked<MinioService>;
 
   const mockArtistProfile: ArtistProfile = {
@@ -50,6 +53,8 @@ describe('ArtistsService', () => {
             create: jest.fn(),
             save: jest.fn(),
             find: jest.fn(),
+            increment: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
@@ -59,6 +64,7 @@ describe('ArtistsService', () => {
             find: jest.fn(),
             create: jest.fn(),
             save: jest.fn(),
+            delete: jest.fn(),
           },
         },
         {
@@ -101,6 +107,9 @@ describe('ArtistsService', () => {
     minioService = module.get<MinioService>(
       MinioService,
     ) as jest.Mocked<MinioService>;
+    verificationDocsRepository = module.get(
+      getRepositoryToken(ArtistVerificationDocument),
+    ) as jest.Mocked<Repository<ArtistVerificationDocument>>;
   });
 
   describe('create', () => {
@@ -410,6 +419,11 @@ describe('ArtistsService', () => {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
+        settings: {
+          payouts: {
+            schedule: { interval: 'manual' },
+          },
+        },
       });
       expect(artistsRepository.save).toHaveBeenCalled();
       expect(result).toEqual({
@@ -515,6 +529,118 @@ describe('ArtistsService', () => {
     });
   });
 
+  // ---------- wallet ----------
+
+  describe('creditWallet', () => {
+    it('should credit wallet and return updated balance', async () => {
+      artistsRepository.increment.mockResolvedValue({ affected: 1 } as any);
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        wallet_balance: 500,
+      });
+
+      const result = await service.creditWallet(1, 500);
+
+      expect(artistsRepository.increment).toHaveBeenCalledWith(
+        { id: 1 },
+        'wallet_balance',
+        500,
+      );
+      expect(result).toEqual({
+        artistId: 1,
+        walletBalance: 500,
+        amountCredited: 500,
+      });
+    });
+
+    it('should throw NotFoundException when artist not found', async () => {
+      artistsRepository.increment.mockResolvedValue({ affected: 0 } as any);
+
+      await expect(service.creditWallet(999, 100)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('debitWallet', () => {
+    it('should debit wallet and return updated balance', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      artistsRepository.createQueryBuilder.mockReturnValue(qb as any);
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        wallet_balance: 0,
+      });
+
+      const result = await service.debitWallet(1, 200);
+
+      expect(result).toEqual(
+        expect.objectContaining({ artistId: 1, amountDebited: 200 }),
+      );
+    });
+
+    it('should throw ConflictException when balance insufficient', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      artistsRepository.createQueryBuilder.mockReturnValue(qb as any);
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+
+      await expect(service.debitWallet(1, 999999)).rejects.toThrow();
+    });
+
+    it('should throw NotFoundException when artist does not exist', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      artistsRepository.createQueryBuilder.mockReturnValue(qb as any);
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.debitWallet(999, 100)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findByStripeAccountId', () => {
+    it('should return artist info for a given Stripe account', async () => {
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 100,
+          firstname: 'Jane',
+          lastname: 'Smith',
+          email: 'jane@example.com',
+        }),
+      }) as any;
+
+      const result = await service.findByStripeAccountId('acct_abc');
+
+      expect(result).toEqual(
+        expect.objectContaining({ email: 'jane@example.com' }),
+      );
+    });
+
+    it('should return null when no profile found', async () => {
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.findByStripeAccountId('acct_unknown');
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('adminGetAll', () => {
     it('should return all artist profiles with shops', async () => {
       const profiles = [
@@ -529,6 +655,216 @@ describe('ArtistsService', () => {
         relations: ['shops'],
       });
       expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('addPendingBalance', () => {
+    it('should add pending balance and return updated value', async () => {
+      artistsRepository.increment.mockResolvedValue({ affected: 1 } as any);
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        pending_balance: 200,
+      });
+
+      const result = await service.addPendingBalance(1, 200);
+
+      expect(artistsRepository.increment).toHaveBeenCalledWith(
+        { id: 1 },
+        'pending_balance',
+        200,
+      );
+      expect(result).toEqual({
+        artistId: 1,
+        pendingBalance: 200,
+        amountAdded: 200,
+      });
+    });
+
+    it('should throw NotFoundException when artist not found', async () => {
+      artistsRepository.increment.mockResolvedValue({ affected: 0 } as any);
+
+      await expect(service.addPendingBalance(999, 100)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('subtractPendingBalance', () => {
+    it('should subtract pending balance using GREATEST', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      artistsRepository.createQueryBuilder.mockReturnValue(qb as any);
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        pending_balance: 0,
+      });
+
+      const result = await service.subtractPendingBalance(1, 100);
+
+      expect(result).toEqual(
+        expect.objectContaining({ artistId: 1, amountSubtracted: 100 }),
+      );
+    });
+
+    it('should throw NotFoundException when artist not found', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      artistsRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await expect(service.subtractPendingBalance(999, 100)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('markStripeReady', () => {
+    it('should return not_found when profile does not exist', async () => {
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.markStripeReady('acct_unknown');
+
+      expect(result).toEqual({ updated: false, reason: 'not_found' });
+    });
+
+    it('should return already_onboarded when profile is already onboarded', async () => {
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        stripe_account_id: 'acct_123',
+        stripe_onboarded: true,
+      });
+
+      const result = await service.markStripeReady('acct_123');
+
+      expect(result).toEqual({ updated: false, reason: 'already_onboarded' });
+    });
+
+    it('should mark artist as stripe ready', async () => {
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        stripe_account_id: 'acct_123',
+        stripe_onboarded: false,
+      });
+      artistsRepository.save.mockResolvedValue({
+        ...mockArtistProfile,
+        stripe_account_id: 'acct_123',
+        stripe_onboarded: true,
+      });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 100,
+          firstname: 'Jane',
+          lastname: 'Smith',
+          email: 'jane@example.com',
+        }),
+      }) as any;
+
+      const result = await service.markStripeReady('acct_123');
+
+      expect(artistsRepository.save).toHaveBeenCalled();
+      expect(result).toEqual({ updated: true, artistId: 1 });
+    });
+  });
+
+  describe('markStripeNotReady', () => {
+    it('should return not_found when profile does not exist', async () => {
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.markStripeNotReady('acct_unknown');
+
+      expect(result).toEqual({ updated: false, reason: 'not_found' });
+    });
+
+    it('should return already_not_ready when profile is not onboarded', async () => {
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        stripe_account_id: 'acct_123',
+        stripe_onboarded: false,
+      });
+
+      const result = await service.markStripeNotReady('acct_123');
+
+      expect(result).toEqual({ updated: false, reason: 'already_not_ready' });
+    });
+
+    it('should mark artist as stripe not ready', async () => {
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        stripe_account_id: 'acct_123',
+        stripe_onboarded: true,
+      });
+      artistsRepository.save.mockResolvedValue({
+        ...mockArtistProfile,
+        stripe_account_id: 'acct_123',
+        stripe_onboarded: false,
+      });
+
+      const result = await service.markStripeNotReady('acct_123');
+
+      expect(result).toEqual({ updated: true, artistId: 1 });
+    });
+  });
+
+  describe('getMyVerification', () => {
+    it('should return verification status and documents', async () => {
+      artistsRepository.findOne.mockResolvedValue({
+        ...mockArtistProfile,
+        validation_status: 'none',
+        validation_note: null,
+      } as any);
+      verificationDocsRepository.find.mockResolvedValue([]);
+
+      const result = await service.getMyVerification(100);
+
+      expect(result).toEqual({
+        validation_status: 'none',
+        validation_note: null,
+        documents: [],
+      });
+    });
+
+    it('should throw NotFoundException when profile not found', async () => {
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.getMyVerification(999)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('toggleValidation (validated → false)', () => {
+    it('should toggle from true to false and delete verification docs', async () => {
+      const validatedProfile = {
+        ...mockArtistProfile,
+        validated: true,
+        id: 1,
+      };
+      artistsRepository.findOne.mockResolvedValue(validatedProfile);
+      verificationDocsRepository.find.mockResolvedValue([
+        { id: 10, file_url: 'doc1.pdf', artist_profile_id: 1 } as any,
+      ]);
+      verificationDocsRepository.delete.mockResolvedValue({
+        affected: 1,
+      } as any);
+      minioService.deleteFile.mockResolvedValue(undefined);
+      artistsRepository.save.mockResolvedValue({
+        ...validatedProfile,
+        validated: false,
+        validation_status: 'none',
+      } as any);
+
+      const result = await service.toggleValidation(1);
+
+      expect(minioService.deleteFile).toHaveBeenCalledWith('doc1.pdf');
+      expect(result.validated).toBe(false);
     });
   });
 });

@@ -81,11 +81,14 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.module.(t|j)s",
+      "!**/main.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
+      "^amqplib$": "<rootDir>/__mocks__/amqplib.js",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     }
   }

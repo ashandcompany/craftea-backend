@@ -95,7 +95,7 @@ describe('ProductsController', () => {
       service.decrementStock.mockResolvedValue(result);
 
       expect(await controller.decrementStock(1, 3)).toBe(result);
-      expect(service.decrementStock).toHaveBeenCalledWith(1, 3);
+      expect(service.decrementStock).toHaveBeenCalledWith(1, 3, undefined);
     });
   });
 

@@ -139,22 +139,62 @@ describe('ProductsService', () => {
       expect(tagsRepo.find).not.toHaveBeenCalled();
       expect(result).toBeDefined();
     });
+
+    it('should compute stock from variants', async () => {
+      const dto = {
+        shop_id: 10,
+        title: 'T-shirt',
+        price: 25,
+        variants: [
+          {
+            name: 'Taille',
+            options: [
+              { label: 'S', stock: 3 },
+              { label: 'M', stock: 5 },
+            ],
+          },
+        ],
+      } as any;
+      const created = { ...mockProduct, id: 3 };
+      productsRepo.create.mockReturnValue(created);
+      productsRepo.save.mockResolvedValue(created);
+      productsRepo.findOne.mockResolvedValue(created);
+
+      await service.create(dto, []);
+
+      expect(productsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ stock: 8 }),
+      );
+    });
   });
 
   // ---------- findAll ----------
 
   describe('findAll', () => {
+    const makeQb = (
+      rows: Product[],
+      total = rows.length,
+      rawIds?: { id: number }[],
+    ) => ({
+      select: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      offset: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(total),
+      getRawMany: jest
+        .fn()
+        .mockResolvedValue(rawIds ?? rows.map((r) => ({ id: r.id }))),
+      getMany: jest.fn().mockResolvedValue(rows),
+    });
+
     it('should return paginated products with default params', async () => {
       const rows = [mockProduct];
-      const qb = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([rows, 1]),
-      };
+      const qb = makeQb(rows);
       productsRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.findAll({});
@@ -165,16 +205,17 @@ describe('ProductsService', () => {
       });
     });
 
+    it('should return empty result when no products match', async () => {
+      const qb = makeQb([], 0, []);
+      productsRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.findAll({});
+
+      expect(result).toEqual({ total: 0, page: 1, limit: 20, data: [] });
+    });
+
     it('should apply category_id filter', async () => {
-      const qb = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
-      };
+      const qb = makeQb([], 0, []);
       productsRepo.createQueryBuilder.mockReturnValue(qb);
 
       await service.findAll({ category_id: 5 });
@@ -185,15 +226,7 @@ describe('ProductsService', () => {
     });
 
     it('should apply search filter with ILIKE', async () => {
-      const qb = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
-      };
+      const qb = makeQb([], 0, []);
       productsRepo.createQueryBuilder.mockReturnValue(qb);
 
       await service.findAll({ search: 'vase' });
@@ -204,15 +237,7 @@ describe('ProductsService', () => {
     });
 
     it('should skip is_active filter when include_inactive is true', async () => {
-      const qb = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
-      };
+      const qb = makeQb([], 0, []);
       productsRepo.createQueryBuilder.mockReturnValue(qb);
 
       await service.findAll({ include_inactive: 'true' });
@@ -221,6 +246,138 @@ describe('ProductsService', () => {
         'product.is_active = :active',
         expect.anything(),
       );
+    });
+
+    it('should apply shop_id filter', async () => {
+      const qb = makeQb([], 0, []);
+      productsRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll({ shop_id: 7 });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('product.shop_id = :shopId', {
+        shopId: 7,
+      });
+    });
+
+    it('should apply tag filter using innerJoin', async () => {
+      const qb = makeQb([], 0, []);
+      productsRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll({ tag: 3 });
+
+      expect(qb.innerJoin).toHaveBeenCalledWith('product.tags', 'tag_filter');
+      expect(qb.andWhere).toHaveBeenCalledWith('tag_filter.id = :tagId', {
+        tagId: 3,
+      });
+    });
+  });
+
+  // ---------- update ----------
+
+  describe('update', () => {
+    const makeImgQb = () => ({
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ max: 0 }),
+    });
+
+    it('should update scalar fields and return updated product', async () => {
+      const product = { ...mockProduct, tags: [] };
+      const dto = { title: 'Nouveau titre', price: 39.99 } as any;
+
+      productsRepo.findOne
+        .mockResolvedValueOnce(product)
+        .mockResolvedValueOnce({ ...product, title: 'Nouveau titre' });
+      productsRepo.save.mockResolvedValue(product);
+      redis.invalidateCache.mockResolvedValue(undefined);
+      rabbitmq.publish.mockResolvedValue(undefined);
+
+      const result = await service.update(1, dto, []);
+
+      expect(productsRepo.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(productsRepo.save).toHaveBeenCalled();
+      expect(redis.invalidateCache).toHaveBeenCalledWith('products:1');
+      expect(rabbitmq.publish).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should throw NotFoundException when product not found', async () => {
+      productsRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.update(999, {} as any, [])).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should upload new images when files provided', async () => {
+      const product = { ...mockProduct, tags: [] };
+      const file = {
+        originalname: 'new.jpg',
+        buffer: Buffer.from('x'),
+      } as Express.Multer.File;
+
+      productsRepo.findOne
+        .mockResolvedValueOnce(product)
+        .mockResolvedValueOnce(product);
+      productsRepo.save.mockResolvedValue(product);
+      imagesRepo.createQueryBuilder.mockReturnValue(makeImgQb() as any);
+      imagesRepo.save.mockResolvedValue({});
+      minioService.uploadFile.mockResolvedValue('new.jpg');
+      redis.invalidateCache.mockResolvedValue(undefined);
+      rabbitmq.publish.mockResolvedValue(undefined);
+
+      await service.update(1, {} as any, [file]);
+
+      expect(minioService.uploadFile).toHaveBeenCalledWith(file);
+      expect(imagesRepo.save).toHaveBeenCalled();
+    });
+
+    it('should update tags when dto.tags is provided', async () => {
+      const product = { ...mockProduct, tags: [] };
+      const dto = { tags: [1, 2] } as any;
+      const tags = [{ id: 1 }, { id: 2 }];
+
+      productsRepo.findOne
+        .mockResolvedValueOnce(product)
+        .mockResolvedValueOnce({ ...product, tags });
+      productsRepo.save.mockResolvedValue(product);
+      tagsRepo.find.mockResolvedValue(tags as any);
+      redis.invalidateCache.mockResolvedValue(undefined);
+      rabbitmq.publish.mockResolvedValue(undefined);
+
+      await service.update(1, dto, []);
+
+      expect(tagsRepo.find).toHaveBeenCalled();
+      expect(product.tags).toEqual(tags);
+    });
+
+    it('should delete images listed in images_to_delete', async () => {
+      const product = {
+        ...mockProduct,
+        tags: [],
+        images: [{ id: 3, image_url: 'http://minio/bucket/old.jpg' }],
+      };
+      const dto = { images_to_delete: [3] } as any;
+
+      productsRepo.findOne
+        .mockResolvedValueOnce(product)
+        .mockResolvedValueOnce(product);
+      productsRepo.save.mockResolvedValue(product);
+      imagesRepo.find.mockResolvedValue([
+        { id: 3, image_url: 'http://minio/bucket/old.jpg', product_id: 1 },
+      ] as any);
+      minioService.deleteFile.mockResolvedValue(undefined);
+      minioService.objectNameFromUrl.mockReturnValue('old.jpg');
+      imagesRepo.delete.mockResolvedValue({ affected: 1 } as any);
+      redis.invalidateCache.mockResolvedValue(undefined);
+      rabbitmq.publish.mockResolvedValue(undefined);
+
+      await service.update(1, dto, []);
+
+      expect(minioService.deleteFile).toHaveBeenCalledWith(
+        'http://minio/bucket/old.jpg',
+      );
+      expect(imagesRepo.delete).toHaveBeenCalled();
     });
   });
 
@@ -323,6 +480,47 @@ describe('ProductsService', () => {
       await expect(service.decrementStock(999, 1)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should decrement stock on a specific variant option', async () => {
+      const product = {
+        ...mockProduct,
+        stock: 8,
+        variants: [
+          {
+            name: 'Taille',
+            options: [
+              { label: 'S', stock: 3 },
+              { label: 'M', stock: 5 },
+            ],
+          },
+        ],
+      };
+      productsRepo.findOne.mockResolvedValue(product);
+      productsRepo.save.mockResolvedValue({ ...product, stock: 7 });
+
+      const result = await service.decrementStock(1, 1, { Taille: 'S' });
+
+      expect(product.variants[0].options[0].stock).toBe(2);
+      expect(result).toBeDefined();
+    });
+
+    it('should throw BadRequestException when variant option stock is insufficient', async () => {
+      const product = {
+        ...mockProduct,
+        stock: 1,
+        variants: [
+          {
+            name: 'Taille',
+            options: [{ label: 'S', stock: 1 }],
+          },
+        ],
+      };
+      productsRepo.findOne.mockResolvedValue(product);
+
+      await expect(
+        service.decrementStock(1, 5, { Taille: 'S' }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

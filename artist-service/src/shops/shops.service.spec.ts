@@ -22,7 +22,7 @@ describe('ShopsService', () => {
   let service: ShopsService;
   let shopsRepository: jest.Mocked<Repository<Shop>>;
   let shippingRepository: jest.Mocked<Repository<ShopShippingProfile>>;
-  let _methodsRepository: jest.Mocked<Repository<ShopShippingMethod>>;
+  let methodsRepository: jest.Mocked<Repository<ShopShippingMethod>>;
   let artistsRepository: jest.Mocked<Repository<ArtistProfile>>;
   let minioService: jest.Mocked<MinioService>;
 
@@ -105,7 +105,7 @@ describe('ShopsService', () => {
     shippingRepository = module.get(
       getRepositoryToken(ShopShippingProfile),
     ) as jest.Mocked<Repository<ShopShippingProfile>>;
-    _methodsRepository = module.get(
+    methodsRepository = module.get(
       getRepositoryToken(ShopShippingMethod),
     ) as jest.Mocked<Repository<ShopShippingMethod>>;
     artistsRepository = module.get(
@@ -335,6 +335,300 @@ describe('ShopsService', () => {
       await expect(service.getShippingProfiles(999)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('update with file uploads', () => {
+    it('should replace banner and logo when files are provided', async () => {
+      const dto = { name: 'Updated' };
+      const bannerFile = {
+        originalname: 'b.jpg',
+        buffer: Buffer.from('b'),
+      } as Express.Multer.File;
+      const logoFile = {
+        originalname: 'l.jpg',
+        buffer: Buffer.from('l'),
+      } as Express.Multer.File;
+
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(mockShop);
+      minioService.deleteFile.mockResolvedValue(undefined);
+      minioService.uploadFile
+        .mockResolvedValueOnce('new-banner.jpg')
+        .mockResolvedValueOnce('new-logo.jpg');
+      shopsRepository.save.mockResolvedValue({
+        ...mockShop,
+        banner_url: 'new-banner.jpg',
+        logo_url: 'new-logo.jpg',
+      });
+
+      await service.update(1, dto, 100, {
+        banner: [bannerFile],
+        logo: [logoFile],
+      });
+
+      expect(minioService.deleteFile).toHaveBeenCalledWith('banner.jpg');
+      expect(minioService.deleteFile).toHaveBeenCalledWith('logo.jpg');
+      expect(minioService.uploadFile).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('updateShippingProfiles', () => {
+    it('should update an existing shipping profile', async () => {
+      const existingProfile = {
+        id: 1,
+        shop_id: 1,
+        zone: ShippingZone.FRANCE,
+        base_fee: 3,
+        additional_item_fee: 0.5,
+        free_shipping_threshold: null,
+      } as ShopShippingProfile;
+      const dto = {
+        profiles: [
+          {
+            zone: ShippingZone.FRANCE,
+            base_fee: 5,
+            additional_item_fee: 1,
+            free_shipping_threshold: 50,
+          },
+        ],
+      };
+
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(mockShop);
+      shippingRepository.findOne.mockResolvedValue(existingProfile);
+      shippingRepository.save.mockResolvedValue({
+        ...existingProfile,
+        base_fee: 5,
+      });
+      shippingRepository.delete.mockResolvedValue({ affected: 1 } as any);
+      shippingRepository.find.mockResolvedValue([existingProfile]);
+
+      const result = await service.updateShippingProfiles(1, dto as any, 100);
+
+      expect(shippingRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ zone: ShippingZone.FRANCE, base_fee: 5 }),
+      );
+      expect(result).toEqual([existingProfile]);
+    });
+
+    it('should create a new shipping profile when zone does not exist', async () => {
+      const newProfile = {
+        id: 2,
+        shop_id: 1,
+        zone: ShippingZone.EUROPE,
+        base_fee: 10,
+        additional_item_fee: 2,
+        free_shipping_threshold: null,
+      } as ShopShippingProfile;
+      const dto = {
+        profiles: [
+          { zone: ShippingZone.EUROPE, base_fee: 10, additional_item_fee: 2 },
+        ],
+      };
+
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(mockShop);
+      shippingRepository.findOne.mockResolvedValue(null);
+      shippingRepository.create.mockReturnValue(newProfile);
+      shippingRepository.save.mockResolvedValue(newProfile);
+      shippingRepository.delete.mockResolvedValue({ affected: 0 } as any);
+      shippingRepository.find.mockResolvedValue([newProfile]);
+
+      const result = await service.updateShippingProfiles(1, dto as any, 100);
+
+      expect(shippingRepository.create).toHaveBeenCalled();
+      expect(result).toEqual([newProfile]);
+    });
+
+    it('should throw ForbiddenException if artist not found', async () => {
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateShippingProfiles(1, { profiles: [] } as any, 100),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if shop not found', async () => {
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateShippingProfiles(1, { profiles: [] } as any, 100),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getShippingProfilesBulk', () => {
+    it('should return empty object when given no shop ids', async () => {
+      const result = await service.getShippingProfilesBulk([]);
+      expect(result).toEqual({});
+    });
+
+    it('should return profiles grouped by shop id', async () => {
+      const profile1 = {
+        id: 1,
+        shop_id: 1,
+        zone: ShippingZone.FRANCE,
+      } as ShopShippingProfile;
+      const profile2 = {
+        id: 2,
+        shop_id: 2,
+        zone: ShippingZone.EUROPE,
+      } as ShopShippingProfile;
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([profile1, profile2]),
+      };
+      shippingRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      const result = await service.getShippingProfilesBulk([1, 2]);
+
+      expect(result[1]).toEqual([profile1]);
+      expect(result[2]).toEqual([profile2]);
+    });
+  });
+
+  describe('getShippingMethods', () => {
+    it('should return shipping methods for a shop', async () => {
+      const methods = [
+        { id: 1, shop_id: 1, name: 'Standard' } as ShopShippingMethod,
+      ];
+      shopsRepository.findOne.mockResolvedValue(mockShop);
+      methodsRepository.find.mockResolvedValue(methods);
+
+      const result = await service.getShippingMethods(1);
+
+      expect(methodsRepository.find).toHaveBeenCalledWith({
+        where: { shop_id: 1 },
+        order: { id: 'ASC' },
+      });
+      expect(result).toEqual(methods);
+    });
+
+    it('should throw NotFoundException if shop not found', async () => {
+      shopsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.getShippingMethods(999)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('updateShippingMethods', () => {
+    it('should create a new shipping method', async () => {
+      const newMethod = {
+        id: 1,
+        shop_id: 1,
+        name: 'Standard',
+      } as ShopShippingMethod;
+      const dto = {
+        methods: [
+          {
+            name: 'Standard',
+            zones: [ShippingZone.FRANCE],
+            delivery_time_min: 2,
+            delivery_time_max: 5,
+          },
+        ],
+      };
+
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(mockShop);
+      methodsRepository.find
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([newMethod]);
+      methodsRepository.create.mockReturnValue(newMethod);
+      methodsRepository.save.mockResolvedValue(newMethod);
+      methodsRepository.remove.mockResolvedValue([] as any);
+
+      const result = await service.updateShippingMethods(1, dto as any, 100);
+
+      expect(methodsRepository.create).toHaveBeenCalled();
+      expect(result).toEqual([newMethod]);
+    });
+
+    it('should update an existing shipping method', async () => {
+      const existing = {
+        id: 5,
+        shop_id: 1,
+        name: 'Rapide',
+        zones: [ShippingZone.FRANCE],
+        delivery_time_unit: 'days',
+      } as ShopShippingMethod;
+      const dto = {
+        methods: [
+          { id: 5, name: 'Rapide Updated', zones: [ShippingZone.FRANCE] },
+        ],
+      };
+
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(mockShop);
+      methodsRepository.find
+        .mockResolvedValueOnce([existing])
+        .mockResolvedValueOnce([existing]);
+      methodsRepository.findOne.mockResolvedValue(existing);
+      methodsRepository.save.mockResolvedValue({
+        ...existing,
+        name: 'Rapide Updated',
+      });
+      methodsRepository.remove.mockResolvedValue([] as any);
+
+      await service.updateShippingMethods(1, dto as any, 100);
+
+      expect(methodsRepository.findOne).toHaveBeenCalled();
+      expect(methodsRepository.save).toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenException if artist not found', async () => {
+      artistsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateShippingMethods(1, { methods: [] } as any, 100),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if shop not found', async () => {
+      artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
+      shopsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateShippingMethods(1, { methods: [] } as any, 100),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getShippingMethodsBulk', () => {
+    it('should return empty object when given no shop ids', async () => {
+      const result = await service.getShippingMethodsBulk([]);
+      expect(result).toEqual({});
+    });
+
+    it('should return methods grouped by shop id', async () => {
+      const method1 = {
+        id: 1,
+        shop_id: 1,
+        name: 'Standard',
+      } as ShopShippingMethod;
+      const method2 = {
+        id: 2,
+        shop_id: 2,
+        name: 'Express',
+      } as ShopShippingMethod;
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([method1, method2]),
+      };
+      methodsRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      const result = await service.getShippingMethodsBulk([1, 2]);
+
+      expect(result[1]).toEqual([method1]);
+      expect(result[2]).toEqual([method2]);
     });
   });
 });

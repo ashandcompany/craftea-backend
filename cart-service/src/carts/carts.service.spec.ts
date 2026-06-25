@@ -98,6 +98,7 @@ describe('CartsService', () => {
         cart_id: 1,
         product_id: 42,
         quantity: 2,
+        selected_options: null,
       });
       expect(itemsRepo.save).toHaveBeenCalledWith(newItem);
       expect(result).toEqual(updatedCart);

@@ -50,6 +50,15 @@ describe('ArtistsController', () => {
             syncStripeOnboardingStatus: jest.fn(),
             creditWallet: jest.fn(),
             debitWallet: jest.fn(),
+            addPendingBalance: jest.fn(),
+            subtractPendingBalance: jest.fn(),
+            findByStripeAccountId: jest.fn(),
+            markStripeReady: jest.fn(),
+            markStripeNotReady: jest.fn(),
+            submitVerification: jest.fn(),
+            getMyVerification: jest.fn(),
+            adminGetPendingVerifications: jest.fn(),
+            adminReviewVerification: jest.fn(),
           },
         },
         {
@@ -276,6 +285,205 @@ describe('ArtistsController', () => {
 
       expect(service.toggleValidation).toHaveBeenCalledWith(1);
       expect(result).toEqual(toggleResponse);
+    });
+  });
+
+  describe('assertInternalToken (via internal endpoints)', () => {
+    it('should throw ForbiddenException when token is missing', () => {
+      const req = { headers: {} };
+      expect(() =>
+        controller.internalGetByStripeAccount('acct_123', req),
+      ).toThrow('Invalid service token');
+    });
+
+    it('should throw ForbiddenException when token is wrong', () => {
+      const req = { headers: { 'x-service-token': 'wrong-token' } };
+      expect(() =>
+        controller.internalGetByStripeAccount('acct_123', req),
+      ).toThrow('Invalid service token');
+    });
+  });
+
+  describe('internalGetByStripeAccount', () => {
+    it('should return artist when token is valid', async () => {
+      service.findByStripeAccountId.mockResolvedValue(
+        mockArtistResponse as any,
+      );
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalGetByStripeAccount(
+        'acct_123',
+        req,
+      );
+
+      expect(service.findByStripeAccountId).toHaveBeenCalledWith('acct_123');
+      expect(result).toEqual(mockArtistResponse);
+    });
+  });
+
+  describe('internalCreditWallet', () => {
+    it('should credit wallet when token is valid', async () => {
+      service.creditWallet.mockResolvedValue({ wallet_balance: 500 } as any);
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalCreditWallet(
+        1,
+        { amount_cents: 500 },
+        req,
+      );
+
+      expect(service.creditWallet).toHaveBeenCalledWith(1, 500);
+      expect(result).toEqual({ wallet_balance: 500 });
+    });
+  });
+
+  describe('internalDebitWallet', () => {
+    it('should debit wallet when token is valid', async () => {
+      service.debitWallet.mockResolvedValue({ wallet_balance: 0 } as any);
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalDebitWallet(
+        1,
+        { amount_cents: 500 },
+        req,
+      );
+
+      expect(service.debitWallet).toHaveBeenCalledWith(1, 500);
+      expect(result).toEqual({ wallet_balance: 0 });
+    });
+  });
+
+  describe('internalAddPendingBalance', () => {
+    it('should add pending balance when token is valid', async () => {
+      service.addPendingBalance.mockResolvedValue({
+        pending_balance: 200,
+      } as any);
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalAddPendingBalance(
+        1,
+        { amount_cents: 200 },
+        req,
+      );
+
+      expect(service.addPendingBalance).toHaveBeenCalledWith(1, 200);
+      expect(result).toEqual({ pending_balance: 200 });
+    });
+  });
+
+  describe('internalSubtractPendingBalance', () => {
+    it('should subtract pending balance when token is valid', async () => {
+      service.subtractPendingBalance.mockResolvedValue({
+        pending_balance: 0,
+      } as any);
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalSubtractPendingBalance(
+        1,
+        { amount_cents: 200 },
+        req,
+      );
+
+      expect(service.subtractPendingBalance).toHaveBeenCalledWith(1, 200);
+      expect(result).toEqual({ pending_balance: 0 });
+    });
+  });
+
+  describe('internalMarkStripeReady', () => {
+    it('should mark stripe ready when token is valid', async () => {
+      service.markStripeReady.mockResolvedValue({
+        stripe_onboarded: true,
+      } as any);
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalMarkStripeReady(
+        { stripe_account_id: 'acct_123' },
+        req,
+      );
+
+      expect(service.markStripeReady).toHaveBeenCalledWith('acct_123');
+      expect(result).toEqual({ stripe_onboarded: true });
+    });
+  });
+
+  describe('internalMarkStripeNotReady', () => {
+    it('should mark stripe not ready when token is valid', async () => {
+      service.markStripeNotReady.mockResolvedValue({
+        stripe_onboarded: false,
+      } as any);
+      const req = { headers: { 'x-service-token': 'test-token' } };
+
+      const result = await controller.internalMarkStripeNotReady(
+        { stripe_account_id: 'acct_123' },
+        req,
+      );
+
+      expect(service.markStripeNotReady).toHaveBeenCalledWith('acct_123');
+      expect(result).toEqual({ stripe_onboarded: false });
+    });
+  });
+
+  describe('submitVerification', () => {
+    it('should submit verification for current artist', async () => {
+      const verificationResult = { id: 1, status: 'pending' };
+      service.submitVerification.mockResolvedValue(verificationResult as any);
+      const req = { user: { id: 100 } };
+      const files: Express.Multer.File[] = [];
+      const dto = { description: 'My products', names: ['product1'] };
+
+      const result = await controller.submitVerification(
+        req,
+        files,
+        dto as any,
+      );
+
+      expect(service.submitVerification).toHaveBeenCalledWith(
+        100,
+        [],
+        'My products',
+        ['product1'],
+      );
+      expect(result).toEqual(verificationResult);
+    });
+  });
+
+  describe('getMyVerification', () => {
+    it('should get verification for current artist', async () => {
+      const verification = { id: 1, status: 'pending' };
+      service.getMyVerification.mockResolvedValue(verification as any);
+      const req = { user: { id: 100 } };
+
+      const result = await controller.getMyVerification(req);
+
+      expect(service.getMyVerification).toHaveBeenCalledWith(100);
+      expect(result).toEqual(verification);
+    });
+  });
+
+  describe('adminGetPendingVerifications', () => {
+    it('should return all pending verifications for admin', async () => {
+      const verifications = [{ id: 1 }, { id: 2 }];
+      service.adminGetPendingVerifications.mockResolvedValue(
+        verifications as any,
+      );
+
+      const result = await controller.adminGetPendingVerifications();
+
+      expect(service.adminGetPendingVerifications).toHaveBeenCalled();
+      expect(result).toEqual(verifications);
+    });
+  });
+
+  describe('adminReviewVerification', () => {
+    it('should review a verification for admin', async () => {
+      const reviewResult = { id: 1, status: 'approved' };
+      service.adminReviewVerification.mockResolvedValue(reviewResult as any);
+      const dto = { decision: 'approved', comment: 'Looks good' };
+
+      const result = await controller.adminReviewVerification(1, dto as any);
+
+      expect(service.adminReviewVerification).toHaveBeenCalledWith(1, dto);
+      expect(result).toEqual(reviewResult);
     });
   });
 });
