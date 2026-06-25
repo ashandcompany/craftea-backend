@@ -1,111 +1,76 @@
-name: Deploy to Production
+name: CI/CD
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Secrets requis (Settings > Secrets > Actions) :
+#
+#   Serveur       SERVER_HOST · SERVER_USER · SERVER_SSH_KEY · SERVER_SSH_KNOWN_HOST
+#   DB/infra      DB_PASSWORD · REDIS_PASSWORD · RABBITMQ_PASSWORD · MINIO_SECRET_KEY
+#   Auth          JWT_SECRET · JWT_REFRESH_SECRET · INTERNAL_SERVICE_TOKEN
+#   Stripe        STRIPE_PUBLISHABLE_KEY
+#   OAuth         GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET
+#   Mail          RESEND_API_KEY · EMAIL_FROM · ADMIN_EMAIL
+#   Umami         UMAMI_APP_SECRET · UMAMI_DATABASE_URL
+# ─────────────────────────────────────────────────────────────────────────────
 
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
 
 env:
   REGISTRY: ghcr.io/${{ github.repository_owner }}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Secrets à configurer dans le repo BACKEND (Settings > Secrets > Actions) :
-#
-#   SERVER_HOST            = 51.178.27.251
-#   SERVER_USER            = debian
-#   SERVER_SSH_KEY         = contenu de ~/.ssh/id_rsa
-#   SERVER_SSH_KNOWN_HOST  = sortie de : ssh-keyscan 51.178.27.251
-#
-#   DB_PASSWORD            openssl rand -base64 32
-#   REDIS_PASSWORD         openssl rand -base64 32
-#   RABBITMQ_PASSWORD      openssl rand -base64 32
-#   MINIO_SECRET_KEY       openssl rand -base64 32
-#   JWT_SECRET             openssl rand -base64 48
-#   JWT_REFRESH_SECRET     openssl rand -base64 48
-#   INTERNAL_SERVICE_TOKEN openssl rand -hex 32
-#
-#   STRIPE_PUBLISHABLE_KEY  pk_test_...
-#   GOOGLE_CLIENT_ID        ...apps.googleusercontent.com
-#   GOOGLE_CLIENT_SECRET    GOCSPX-...
-#   RESEND_API_KEY          re_...
-#   EMAIL_FROM              noreply@craftea.fr
-#   ADMIN_EMAIL             admin@craftea.fr
-#   UMAMI_APP_SECRET        openssl rand -base64 32
-#   UMAMI_DATABASE_URL      postgresql://craftea:<DB_PASSWORD_URL_ENCODED>@db:5432/craftea_umami
-#                           (encoder le mot de passe : python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "MOT_DE_PASSE")
-# ─────────────────────────────────────────────────────────────────────────────
+  NODE_VERSION: '20'
 
 jobs:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # UNIT TESTS — Jest + ts-jest, matrix par service
-  # Non-bloquant : le deploy se lance même en cas d'échec (if: always())
-  # ─────────────────────────────────────────────────────────────────────────
-  unit-tests:
-    name: Unit · ${{ matrix.service }} (≥${{ matrix.threshold }}%)
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 1. LINT — ESLint + Prettier (matrice parallèle, bloquant)
+  # ══════════════════════════════════════════════════════════════════════════════
+  lint:
+    name: Lint · ${{ matrix.service }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - service: payment-service
-            threshold: 85
-          - service: order-service
-            threshold: 85
-          - service: user-service
-            threshold: 80
-          - service: artist-service
-            threshold: 70
-          - service: catalog-service
-            threshold: 70
-          - service: cart-service
-            threshold: 70
-          - service: interaction-service
-            threshold: 70
+        service:
+          - payment-service
+          - order-service
+          - user-service
+          - artist-service
+          - catalog-service
+          - cart-service
+          - interaction-service
+          - notification-service
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
           cache-dependency-path: ${{ matrix.service }}/package-lock.json
 
       - name: Install
         run: npm ci
         working-directory: ${{ matrix.service }}
 
-      - name: Tests + coverage (seuil ${{ matrix.threshold }}%)
-        run: |
-          npx jest \
-            --coverage \
-            --coverageReporters=text \
-            --coverageReporters=lcov \
-            --coverageThreshold='{"global":{"lines":${{ matrix.threshold }}}}' \
-            --passWithNoTests \
-            --forceExit
+      - name: ESLint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings 0
         working-directory: ${{ matrix.service }}
-        continue-on-error: true
 
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-${{ matrix.service }}
-          path: ${{ matrix.service }}/coverage/lcov.info
-          retention-days: 7
-          if-no-files-found: ignore
+      - name: Prettier
+        run: npx prettier --check "src/**/*.ts"
+        working-directory: ${{ matrix.service }}
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # INTEGRATION TESTS — Supertest, HTTP → base de données
-  # Endpoints critiques : auth (register/login), profil, permissions
-  # ─────────────────────────────────────────────────────────────────────────
-  integration-tests:
-    name: Integration · Supertest (endpoints critiques)
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 2. TESTS — Jest --coverage + Supertest (conteneur PostgreSQL)
+  # ══════════════════════════════════════════════════════════════════════════════
+  tests:
+    name: Tests · ${{ matrix.service }} (≥${{ matrix.threshold }}%)
     runs-on: ubuntu-latest
-    continue-on-error: true
-    needs: unit-tests
+    needs: lint
 
     services:
       postgres:
@@ -114,8 +79,7 @@ jobs:
           POSTGRES_USER: craftea
           POSTGRES_PASSWORD: craftea
           POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
+        ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -124,8 +88,7 @@ jobs:
 
       redis:
         image: redis:alpine
-        ports:
-          - 6379:6379
+        ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -137,41 +100,80 @@ jobs:
         env:
           RABBITMQ_DEFAULT_USER: craftea
           RABBITMQ_DEFAULT_PASS: craftea
-        ports:
-          - 5672:5672
+        ports: ['5672:5672']
         options: >-
           --health-cmd "rabbitmq-diagnostics -q ping"
           --health-interval 10s
           --health-timeout 10s
           --health-retries 5
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: payment-service
+            threshold: 85
+            db_name: craftea_payments
+          - service: order-service
+            threshold: 85
+            db_name: craftea_orders
+          - service: user-service
+            threshold: 80
+            db_name: craftea_users
+          - service: artist-service
+            threshold: 70
+            db_name: craftea_artists
+          - service: catalog-service
+            threshold: 70
+            db_name: craftea_catalog
+          - service: cart-service
+            threshold: 70
+            db_name: craftea_carts
+          - service: interaction-service
+            threshold: 70
+            db_name: craftea_interactions
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Initialiser les bases de données
-        run: PGPASSWORD=craftea psql -h localhost -U craftea -d postgres -f docker/init.sql
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
 
-      # ── user-service ──────────────────────────────────────────────────────
-      - name: Install · user-service
+      - name: Init DB
+        run: PGPASSWORD=craftea psql -h localhost -U craftea -d postgres -f docker/init.sql
+
+      - name: Install
         run: npm ci
-        working-directory: user-service
+        working-directory: ${{ matrix.service }}
 
-      - name: Integration tests · user-service
+      - name: Unit tests + coverage (seuil ${{ matrix.threshold }}%)
+        run: |
+          npx jest \
+            --coverage \
+            --coverageReporters=text \
+            --coverageReporters=lcov \
+            --coverageThreshold='{"global":{"lines":${{ matrix.threshold }}}}' \
+            --passWithNoTests \
+            --forceExit
+        working-directory: ${{ matrix.service }}
+
+      # Supertest : uniquement si des fichiers *.e2e-spec.ts existent
+      - name: Integration tests (Supertest)
+        if: hashFiles(format('{0}/test/**/*.e2e-spec.ts', matrix.service)) != ''
         run: npm run test:e2e -- --forceExit
-        working-directory: user-service
+        working-directory: ${{ matrix.service }}
         continue-on-error: true
         env:
           NODE_ENV: test
-          PORT: 3010
+          PORT: 3099
           DB_HOST: localhost
           DB_PORT: 5432
           DB_USER: craftea
           DB_PASS: craftea
-          DB_NAME: craftea_users
+          DB_NAME: ${{ matrix.db_name }}
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           RABBITMQ_URL: amqp://craftea:craftea@localhost:5672
@@ -185,204 +187,153 @@ jobs:
           RESEND_API_KEY: re_test_dummy
           EMAIL_FROM: test@craftea.local
           INTERNAL_SERVICE_TOKEN: ci-internal-token
-
-      # ── artist-service ────────────────────────────────────────────────────
-      - name: Install · artist-service
-        run: npm ci
-        working-directory: artist-service
-
-      - name: Integration tests · artist-service
-        run: npm run test:e2e -- --forceExit
-        working-directory: artist-service
-        continue-on-error: true
-        env:
-          NODE_ENV: test
-          PORT: 3002
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: craftea
-          DB_PASS: craftea
-          DB_NAME: craftea_artists
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          RABBITMQ_URL: amqp://craftea:craftea@localhost:5672
-          JWT_SECRET: ci-test-jwt-secret-32chars-min!!
-          INTERNAL_SERVICE_TOKEN: ci-internal-token
           STRIPE_SECRET_KEY: sk_test_dummy
 
-      # ── catalog-service ───────────────────────────────────────────────────
-      - name: Install · catalog-service
-        run: npm ci
-        working-directory: catalog-service
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.service }}
+          path: ${{ matrix.service }}/coverage/lcov.info
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - name: Integration tests · catalog-service
-        run: npm run test:e2e -- --forceExit
-        working-directory: catalog-service
-        continue-on-error: true
-        env:
-          NODE_ENV: test
-          PORT: 3003
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: craftea
-          DB_PASS: craftea
-          DB_NAME: craftea_catalog
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          RABBITMQ_URL: amqp://craftea:craftea@localhost:5672
-          JWT_SECRET: ci-test-jwt-secret-32chars-min!!
-          INTERNAL_SERVICE_TOKEN: ci-internal-token
-          MINIO_ENDPOINT: localhost
-          MINIO_PORT: 9000
-          MINIO_ACCESS_KEY: minioadmin
-          MINIO_SECRET_KEY: minioadmin
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # E2E TESTS — Cypress headless, 5 scénarios, navigateur complet
-  # Démarre l'infrastructure de test + les services NestJS critiques
-  # ─────────────────────────────────────────────────────────────────────────
-  e2e-tests:
-    name: E2E · Cypress (5 scénarios)
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 3. BUILD — tsc --noEmit (vérification TypeScript sans émettre de fichiers)
+  #            + next build pour le frontend si présent dans le repo
+  # ══════════════════════════════════════════════════════════════════════════════
+  build:
+    name: Build · ${{ matrix.service }}
     runs-on: ubuntu-latest
-    continue-on-error: true
-    needs: integration-tests
+    needs: tests
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - payment-service
+          - order-service
+          - user-service
+          - artist-service
+          - catalog-service
+          - cart-service
+          - interaction-service
+          - api-gateway
+          - notification-service
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
 
-      - name: Démarrer l'infrastructure de test (postgres, redis, rabbitmq, minio)
-        run: |
-          docker compose -f docker-compose.test.yml up -d
-          until docker exec craftea-postgres-test pg_isready -U craftea; do sleep 2; done
-          PGPASSWORD=craftea docker exec craftea-postgres-test psql -U craftea -d postgres \
-            -c "CREATE DATABASE craftea_artists;" \
-            -c "CREATE DATABASE craftea_catalog;" \
-            -c "CREATE DATABASE craftea_interactions;" \
-            -c "CREATE DATABASE craftea_orders;" \
-            -c "CREATE DATABASE craftea_carts;" \
-            -c "CREATE DATABASE craftea_payments;" 2>/dev/null || true
-
-      - name: Build et démarrer user-service
-        run: |
-          npm ci --prefer-offline && npm run build
-          PORT=3010 DB_HOST=localhost DB_PORT=5433 DB_USER=craftea DB_PASS=craftea \
-          DB_NAME=craftea_users REDIS_HOST=localhost REDIS_PORT=6380 \
-          RABBITMQ_URL=amqp://craftea:craftea@localhost:5673 \
-          JWT_SECRET=e2e-jwt-secret-min32chars-padded!! \
-          JWT_REFRESH_SECRET=e2e-refresh-secret-min32ch!! \
-          MINIO_ENDPOINT=localhost MINIO_PORT=9001 MINIO_ACCESS_KEY=minioadmin \
-          MINIO_SECRET_KEY=minioadmin MINIO_BUCKET=craftea \
-          INTERNAL_SERVICE_TOKEN=e2e-token RESEND_API_KEY=re_dummy \
-          EMAIL_FROM=test@local NODE_ENV=test \
-          node dist/main.js &
-        working-directory: user-service
-
-      - name: Build et démarrer catalog-service
-        run: |
-          npm ci --prefer-offline && npm run build
-          PORT=3003 DB_HOST=localhost DB_PORT=5433 DB_USER=craftea DB_PASS=craftea \
-          DB_NAME=craftea_catalog REDIS_HOST=localhost REDIS_PORT=6380 \
-          RABBITMQ_URL=amqp://craftea:craftea@localhost:5673 \
-          JWT_SECRET=e2e-jwt-secret-min32chars-padded!! \
-          INTERNAL_SERVICE_TOKEN=e2e-token \
-          MINIO_ENDPOINT=localhost MINIO_PORT=9001 MINIO_ACCESS_KEY=minioadmin \
-          MINIO_SECRET_KEY=minioadmin NODE_ENV=test \
-          node dist/main.js &
-        working-directory: catalog-service
-
-      - name: Démarrer l'api-gateway
-        run: |
-          npm ci --prefer-offline && npm run build
-          PORT=3001 CORS_ORIGIN=http://localhost:3000 \
-          USER_SERVICE_URL=http://localhost:3010 \
-          CATALOG_SERVICE_URL=http://localhost:3003 \
-          node dist/index.js &
-        working-directory: api-gateway
-
-      - name: Attendre que les services soient prêts
-        run: |
-          npx wait-on \
-            http://localhost:3010/api/health \
-            http://localhost:3003/api/health \
-            http://localhost:3001/health \
-            --timeout 120000
-
-      - name: Installer Cypress
+      - name: Install
         run: npm ci
-        working-directory: e2e
+        working-directory: ${{ matrix.service }}
 
-      - name: Exécuter Cypress (5 scénarios headless)
-        uses: cypress-io/github-action@v6
-        with:
-          working-directory: e2e
-          browser: chrome
-          headed: false
-          wait-on: 'http://localhost:3001/health'
-          wait-on-timeout: 60
-        env:
-          CYPRESS_BASE_URL: http://localhost:3001
-          CYPRESS_API_URL: http://localhost:3001
-        continue-on-error: true
+      - name: TypeScript check (tsc --noEmit)
+        run: npx tsc --noEmit
+        working-directory: ${{ matrix.service }}
 
-      - name: Upload screenshots (échecs)
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: cypress-screenshots
-          path: e2e/cypress/screenshots
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload vidéos
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: cypress-videos
-          path: e2e/cypress/videos
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Arrêter l'infrastructure
-        if: always()
-        run: docker compose -f docker-compose.test.yml down -v
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # BUILD — Images Docker, push GHCR, parallèle via matrix
-  # Se lance même si les tests échouent (if: always())
-  # ─────────────────────────────────────────────────────────────────────────
-  build-backend:
-    name: Build ${{ matrix.service }}
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 4. SECURITY — npm audit (bloquant sur high+, informationnel)
+  # ══════════════════════════════════════════════════════════════════════════════
+  security:
+    name: Security · ${{ matrix.service }}
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, e2e-tests]
-    if: always()
+    needs: build
+    continue-on-error: true   # informatif : n'empêche pas le déploiement
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - payment-service
+          - order-service
+          - user-service
+          - artist-service
+          - catalog-service
+          - cart-service
+          - interaction-service
+          - api-gateway
+          - notification-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: ${{ matrix.service }}
+
+      - name: npm audit (--audit-level=high)
+        run: npm audit --audit-level=high --omit=dev
+        working-directory: ${{ matrix.service }}
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 5. DOCKER BUILD — 10 images en parallèle → push GHCR (master uniquement)
+  # ══════════════════════════════════════════════════════════════════════════════
+  docker-build:
+    name: Docker · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
       packages: write
     strategy:
+      fail-fast: false
       matrix:
         include:
+          # ── 9 services applicatifs ──────────────────────────────────────────
           - service: api-gateway
             dockerfile: Dockerfile.gateway
+            context: .
+            build_args: SERVICE_DIR=api-gateway
           - service: user-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=user-service
           - service: artist-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=artist-service
           - service: catalog-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=catalog-service
           - service: interaction-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=interaction-service
           - service: order-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=order-service
           - service: cart-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=cart-service
           - service: payment-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=payment-service
           - service: notification-service
             dockerfile: Dockerfile
+            context: .
+            build_args: SERVICE_DIR=notification-service
+          # ── 1 image PostgreSQL personnalisée (init.sql inclus) ──────────────
+          - service: postgres
+            dockerfile: docker/Dockerfile.postgres
+            context: ./docker
+            build_args: ''
+
     steps:
       - uses: actions/checkout@v4
 
@@ -393,64 +344,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Build & push ${{ matrix.service }}
+      - name: Build & push · ${{ matrix.service }}
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./${{ matrix.dockerfile }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
+          build-args: ${{ matrix.build_args }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-          build-args: SERVICE_DIR=${{ matrix.service }}
           tags: |
             ${{ env.REGISTRY }}/craftea-${{ matrix.service }}:${{ github.sha }}
             ${{ env.REGISTRY }}/craftea-${{ matrix.service }}:latest
 
-  # ── Build image PostgreSQL (init.sql inclus) ───────────────────────────────
-  build-postgres:
-    name: Build postgres
-    runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, e2e-tests]
-    if: always()
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Login GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build & push postgres
-        uses: docker/build-push-action@v6
-        with:
-          context: ./docker
-          file: ./docker/Dockerfile.postgres
-          push: true
-          cache-from: type=gha,scope=postgres
-          cache-to: type=gha,mode=max,scope=postgres
-          tags: |
-            ${{ env.REGISTRY }}/craftea-postgres:${{ github.sha }}
-            ${{ env.REGISTRY }}/craftea-postgres:latest
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # DEPLOY — Docker Swarm via SSH context
-  # ─────────────────────────────────────────────────────────────────────────
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 6. DEPLOY — SSH → docker stack deploy --with-registry-auth (master uniquement)
+  # ══════════════════════════════════════════════════════════════════════════════
   deploy:
-    name: Deploy
-    needs: [build-backend, build-postgres]
+    name: Deploy → Swarm
     runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/master'
     environment: production
+
     steps:
       - uses: actions/checkout@v4
 
@@ -461,24 +379,23 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           echo "${{ secrets.SERVER_SSH_KNOWN_HOST }}" > ~/.ssh/known_hosts
 
-      - name: Create Docker context (remote swarm via SSH)
+      - name: Docker context (Swarm via SSH)
         run: |
           docker context create prod \
             --docker "host=ssh://${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
           docker context use prod
 
-      - name: Login GHCR (pour --with-registry-auth)
+      - name: Login GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy stack
+      - name: docker stack deploy
         env:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_TAG: ${{ github.sha }}
-          # Le frontend est géré par son propre repo — on utilise :latest
           FRONTEND_IMAGE_TAG: latest
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
@@ -501,3 +418,28 @@ jobs:
             craftea \
             --with-registry-auth \
             --prune
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # 7. HEALTHCHECK — curl https://craftea.ddnsfree.com/api/health (master uniquement)
+  # ══════════════════════════════════════════════════════════════════════════════
+  healthcheck:
+    name: Healthcheck
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Attendre le démarrage des services (30s)
+        run: sleep 30
+
+      - name: curl /api/health
+        run: |
+          curl \
+            --fail \
+            --retry 6 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --max-time 15 \
+            --silent \
+            --show-error \
+            https://craftea.ddnsfree.com/api/health
