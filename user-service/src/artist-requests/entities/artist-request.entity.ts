@@ -23,7 +23,11 @@ export class ArtistRequest {
   @Column()
   user_id: number;
 
-  @Column({ type: 'enum', enum: ArtistRequestStatus, default: ArtistRequestStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: ArtistRequestStatus,
+    default: ArtistRequestStatus.PENDING,
+  })
   status: ArtistRequestStatus;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -32,6 +36,8 @@ export class ArtistRequest {
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
 
-  @OneToMany(() => ArtistRequestMessage, (msg) => msg.request, { cascade: true })
+  @OneToMany(() => ArtistRequestMessage, (msg) => msg.request, {
+    cascade: true,
+  })
   messages: ArtistRequestMessage[];
 }

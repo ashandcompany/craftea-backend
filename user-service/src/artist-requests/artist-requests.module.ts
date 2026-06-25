@@ -7,7 +7,9 @@ import { ArtistRequestsService } from './artist-requests.service.js';
 import { ArtistRequestsController } from './artist-requests.controller.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ArtistRequest, ArtistRequestMessage, User])],
+  imports: [
+    TypeOrmModule.forFeature([ArtistRequest, ArtistRequestMessage, User]),
+  ],
   controllers: [ArtistRequestsController],
   providers: [ArtistRequestsService],
 })

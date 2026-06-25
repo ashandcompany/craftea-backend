@@ -52,7 +52,9 @@ export class MessagingEventsPublisher implements OnModuleInit, OnModuleDestroy {
         }
       }
     }
-    this.logger.error('Could not connect to RabbitMQ after retries — email notifications disabled');
+    this.logger.error(
+      'Could not connect to RabbitMQ after retries — email notifications disabled',
+    );
   }
 
   async publish(pattern: string, data: Record<string, unknown>): Promise<void> {
@@ -67,7 +69,9 @@ export class MessagingEventsPublisher implements OnModuleInit, OnModuleDestroy {
         contentType: 'application/json',
       });
     } catch (err) {
-      this.logger.error(`Failed to publish [${pattern}]: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to publish [${pattern}]: ${(err as Error).message}`,
+      );
     }
   }
 }

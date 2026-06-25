@@ -20,7 +20,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaymentsService } from './payments.service.js';
-import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
+import {
+  CreatePaymentDto,
+  ConfirmPaymentDto,
+} from './dto/create-payment.dto.js';
 import { RefundPaymentDto } from './dto/refund-payment.dto.js';
 import { RequestPayoutDto } from './dto/request-payout.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
@@ -49,7 +52,10 @@ export class PaymentsController {
   private async fetchArtistByStripeAccount(
     stripeAccountId: string,
   ): Promise<{ email: string; name: string } | null> {
-    const artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
+    const artistUrl = this.configService.get<string>(
+      'ARTIST_URL',
+      'http://artist-service:3002',
+    );
     const token = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
     try {
       const res = await fetch(
@@ -114,7 +120,9 @@ export class PaymentsController {
       }
 
       case 'transfer.failed': {
-        await this.walletService.handleTransferFailed((event.data as any).object as { id: string });
+        await this.walletService.handleTransferFailed(
+          (event.data as any).object as { id: string },
+        );
         break;
       }
 
@@ -136,7 +144,9 @@ export class PaymentsController {
       }
 
       case 'payout.failed': {
-        await this.walletService.handlePayoutFailed((event.data as any).object as { id: string });
+        await this.walletService.handlePayoutFailed(
+          (event.data as any).object as { id: string },
+        );
         const failedPayout = (event.data as any).object as Stripe.Payout;
         const failedAccountId = (event as any).account as string | undefined;
         if (failedAccountId) {

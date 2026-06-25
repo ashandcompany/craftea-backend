@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, In } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Product } from './entities/product.entity.js';
 import { ProductImage } from './entities/product-image.entity.js';
 import { Tag } from '../tags/entities/tag.entity.js';
@@ -15,7 +19,8 @@ import { RabbitmqService, ProductEvent } from '../rabbitmq/rabbitmq.service.js';
 export class ProductsService {
   constructor(
     @InjectRepository(Product) private productsRepo: Repository<Product>,
-    @InjectRepository(ProductImage) private imagesRepo: Repository<ProductImage>,
+    @InjectRepository(ProductImage)
+    private imagesRepo: Repository<ProductImage>,
     @InjectRepository(Tag) private tagsRepo: Repository<Tag>,
     private minioService: MinioService,
     private redis: RedisService,
@@ -25,7 +30,10 @@ export class ProductsService {
   async create(dto: CreateProductDto, files: Express.Multer.File[]) {
     const variants = dto.variants?.length ? dto.variants : null;
     const computedStock = variants
-      ? variants.reduce((s, v) => s + v.options.reduce((os, o) => os + o.stock, 0), 0)
+      ? variants.reduce(
+          (s, v) => s + v.options.reduce((os, o) => os + o.stock, 0),
+          0,
+        )
       : (dto.stock ?? 0);
 
     const product = this.productsRepo.create({
@@ -51,9 +59,15 @@ export class ProductsService {
       const imgRecords: Partial<ProductImage>[] = [];
       for (let i = 0; i < files.length; i++) {
         const url = await this.minioService.uploadFile(files[i]);
-        imgRecords.push({ product_id: product.id, image_url: url, position: i });
+        imgRecords.push({
+          product_id: product.id,
+          image_url: url,
+          position: i,
+        });
       }
-      await this.imagesRepo.save(imgRecords.map((r) => this.imagesRepo.create(r)));
+      await this.imagesRepo.save(
+        imgRecords.map((r) => this.imagesRepo.create(r)),
+      );
     }
 
     // Assign tags
@@ -94,13 +108,17 @@ export class ProductsService {
       idsQb.andWhere('product.is_active = :active', { active: true });
     }
     if (query.category_id) {
-      idsQb.andWhere('product.category_id = :catId', { catId: query.category_id });
+      idsQb.andWhere('product.category_id = :catId', {
+        catId: query.category_id,
+      });
     }
     if (query.shop_id) {
       idsQb.andWhere('product.shop_id = :shopId', { shopId: query.shop_id });
     }
     if (query.search) {
-      idsQb.andWhere('product.title ILIKE :search', { search: `%${query.search}%` });
+      idsQb.andWhere('product.title ILIKE :search', {
+        search: `%${query.search}%`,
+      });
     }
     if (query.tag) {
       // Join only for filtering, no select
@@ -113,7 +131,10 @@ export class ProductsService {
 
     const total = await idsQb.getCount();
 
-    const rawIds = await idsQb.offset(offset).limit(limit).getRawMany<{ id: number }>();
+    const rawIds = await idsQb
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<{ id: number }>();
     const ids = rawIds.map((r) => Number(r.id));
 
     if (ids.length === 0) {
@@ -148,14 +169,29 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: number, dto: UpdateProductDto, files: Express.Multer.File[]) {
+  async update(
+    id: number,
+    dto: UpdateProductDto,
+    files: Express.Multer.File[],
+  ) {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException('Produit introuvable');
 
     // Update scalar fields
     const fields: (keyof UpdateProductDto)[] = [
-      'title', 'description', 'price', 'stock', 'category_id',
-      'is_active', 'processing_time_min', 'processing_time_max', 'processing_time_unit', 'delivery_time_min', 'delivery_time_max', 'delivery_time_unit', 'shipping_fee',
+      'title',
+      'description',
+      'price',
+      'stock',
+      'category_id',
+      'is_active',
+      'processing_time_min',
+      'processing_time_max',
+      'processing_time_unit',
+      'delivery_time_min',
+      'delivery_time_max',
+      'delivery_time_unit',
+      'shipping_fee',
     ];
     for (const f of fields) {
       if (dto[f] !== undefined) (product as any)[f] = dto[f];
@@ -166,7 +202,10 @@ export class ProductsService {
       const variants = dto.variants?.length ? dto.variants : null;
       product.variants = variants;
       if (variants) {
-        product.stock = variants.reduce((s, v) => s + v.options.reduce((os, o) => os + o.stock, 0), 0);
+        product.stock = variants.reduce(
+          (s, v) => s + v.options.reduce((os, o) => os + o.stock, 0),
+          0,
+        );
       }
     }
 
@@ -182,17 +221,21 @@ export class ProductsService {
         const objName = this.minioService.objectNameFromUrl(img.image_url);
         if (objName) await this.redis.invalidateCache(`img:${objName}`);
       }
-      await this.imagesRepo.delete({ id: In(dto.images_to_delete), product_id: product.id });
+      await this.imagesRepo.delete({
+        id: In(dto.images_to_delete),
+        product_id: product.id,
+      });
     }
 
     // Upload new images
     if (files?.length) {
       const maxPos =
-        (await this.imagesRepo
-          .createQueryBuilder('img')
-          .select('MAX(img.position)', 'max')
-          .where('img.product_id = :pid', { pid: product.id })
-          .getRawOne()
+        (
+          await this.imagesRepo
+            .createQueryBuilder('img')
+            .select('MAX(img.position)', 'max')
+            .where('img.product_id = :pid', { pid: product.id })
+            .getRawOne()
         )?.max || 0;
 
       for (let i = 0; i < files.length; i++) {
@@ -268,12 +311,18 @@ export class ProductsService {
     return { id: product.id, stock: product.stock };
   }
 
-  async decrementStock(id: number, quantity: number, selectedOptions?: Record<string, string>) {
+  async decrementStock(
+    id: number,
+    quantity: number,
+    selectedOptions?: Record<string, string>,
+  ) {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException('Produit introuvable');
 
     if (selectedOptions && product.variants && product.variants.length > 0) {
-      for (const [variantName, optionLabel] of Object.entries(selectedOptions)) {
+      for (const [variantName, optionLabel] of Object.entries(
+        selectedOptions,
+      )) {
         const variant = product.variants.find((v) => v.name === variantName);
         if (!variant) continue;
         const option = variant.options.find((o) => o.label === optionLabel);
@@ -286,7 +335,8 @@ export class ProductsService {
         option.stock -= quantity;
       }
       product.stock = product.variants.reduce(
-        (s, v) => s + v.options.reduce((os, o) => os + o.stock, 0), 0,
+        (s, v) => s + v.options.reduce((os, o) => os + o.stock, 0),
+        0,
       );
     } else {
       if (product.stock < quantity) {
@@ -315,7 +365,8 @@ export class ProductsService {
 
     await this.imagesRepo.delete({ product_id: id });
     const result = await this.productsRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException('Produit introuvable');
+    if (result.affected === 0)
+      throw new NotFoundException('Produit introuvable');
 
     await this.redis.invalidateCache(`products:${id}`);
     await this.redis.invalidateCache('products:list:*');

@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Min, Max, MinLength } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateReviewDto {

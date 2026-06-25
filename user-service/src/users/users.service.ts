@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity.js';
@@ -33,7 +38,11 @@ export class UsersService {
     return user;
   }
 
-  async update(id: number, dto: UpdateUserDto, currentUser: { id: number; role: string }) {
+  async update(
+    id: number,
+    dto: UpdateUserDto,
+    currentUser: { id: number; role: string },
+  ) {
     if (currentUser.role !== 'admin' && currentUser.id !== id) {
       throw new ForbiddenException('Accès interdit');
     }

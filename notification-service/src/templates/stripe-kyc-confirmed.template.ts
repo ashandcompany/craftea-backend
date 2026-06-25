@@ -4,7 +4,9 @@ export interface StripeKycConfirmedParams {
   artistName: string;
 }
 
-export function stripeKycConfirmedTemplate(p: StripeKycConfirmedParams): string {
+export function stripeKycConfirmedTemplate(
+  p: StripeKycConfirmedParams,
+): string {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>

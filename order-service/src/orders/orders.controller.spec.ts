@@ -109,7 +109,11 @@ describe('OrdersController', () => {
 
       const result = await controller.updateStatus(1, dto, mockAdminReq);
 
-      expect(service.updateStatus).toHaveBeenCalledWith(1, dto, mockAdminReq.user);
+      expect(service.updateStatus).toHaveBeenCalledWith(
+        1,
+        dto,
+        mockAdminReq.user,
+      );
       expect(result.status).toBe(OrderStatus.CONFIRMED);
     });
   });

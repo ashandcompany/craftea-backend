@@ -50,7 +50,9 @@ describe('WalletService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((_key: string, defaultValue?: string) => defaultValue ?? ''),
+            get: jest.fn(
+              (_key: string, defaultValue?: string) => defaultValue ?? '',
+            ),
           },
         },
         {
@@ -113,7 +115,10 @@ describe('WalletService', () => {
 
   describe('credit', () => {
     it('should return existing AVAILABLE transaction without re-processing', async () => {
-      const availableTx = { ...mockTx, status: WalletTransactionStatus.AVAILABLE };
+      const availableTx = {
+        ...mockTx,
+        status: WalletTransactionStatus.AVAILABLE,
+      };
       walletTxRepo.findOne.mockResolvedValue(availableTx);
 
       const result = await service.credit(5, 2700, 10);
@@ -180,22 +185,31 @@ describe('WalletService', () => {
 
   describe('getMyWallet', () => {
     it('should throw ForbiddenException when auth header is missing', async () => {
-      await expect(service.getMyWallet(undefined)).rejects.toThrow(ForbiddenException);
+      await expect(service.getMyWallet(undefined)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw BadRequestException when artist profile has no id', async () => {
       httpService.get.mockReturnValue(of({ data: {} } as any));
 
-      await expect(service.getMyWallet('Bearer token')).rejects.toThrow(BadRequestException);
+      await expect(service.getMyWallet('Bearer token')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should return wallet snapshot with Stripe balance for an onboarded artist', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
-      stripeService.retrieveConnectedBalance.mockResolvedValue({ available: 4500, pending: 800 });
+      stripeService.retrieveConnectedBalance.mockResolvedValue({
+        available: 4500,
+        pending: 800,
+      });
 
       const result = await service.getMyWallet('Bearer token');
 
-      expect(stripeService.retrieveConnectedBalance).toHaveBeenCalledWith('acct_artist');
+      expect(stripeService.retrieveConnectedBalance).toHaveBeenCalledWith(
+        'acct_artist',
+      );
       expect(result).toMatchObject({
         artistId: 5,
         stripeAvailable: 4500,
@@ -206,7 +220,11 @@ describe('WalletService', () => {
     });
 
     it('should skip Stripe balance fetch when artist is not onboarded', async () => {
-      const notOnboarded = { ...mockArtistProfile, stripe_onboarded: false, stripe_account_id: null };
+      const notOnboarded = {
+        ...mockArtistProfile,
+        stripe_onboarded: false,
+        stripe_account_id: null,
+      };
       httpService.get.mockReturnValue(of({ data: notOnboarded } as any));
 
       const result = await service.getMyWallet('Bearer token');
@@ -218,7 +236,9 @@ describe('WalletService', () => {
 
     it('should return zero Stripe balance when Stripe call throws', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
-      stripeService.retrieveConnectedBalance.mockRejectedValue(new Error('Stripe error'));
+      stripeService.retrieveConnectedBalance.mockRejectedValue(
+        new Error('Stripe error'),
+      );
 
       const result = await service.getMyWallet('Bearer token');
 
@@ -229,7 +249,9 @@ describe('WalletService', () => {
 
   describe('listMyTransactions', () => {
     it('should throw ForbiddenException when auth header is missing', async () => {
-      await expect(service.listMyTransactions(undefined)).rejects.toThrow(ForbiddenException);
+      await expect(service.listMyTransactions(undefined)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should return transactions for the authenticated artist', async () => {
@@ -251,9 +273,9 @@ describe('WalletService', () => {
     it.each([[-1], [0], [NaN]])(
       'should throw BadRequestException for invalid artistId %s',
       async (artistId) => {
-        await expect(service.listTransactionsByArtist(artistId)).rejects.toThrow(
-          BadRequestException,
-        );
+        await expect(
+          service.listTransactionsByArtist(artistId),
+        ).rejects.toThrow(BadRequestException);
       },
     );
 
@@ -273,48 +295,71 @@ describe('WalletService', () => {
 
   describe('requestPayout', () => {
     it('should throw BadRequestException when Stripe account is not configured', async () => {
-      const notOnboarded = { ...mockArtistProfile, stripe_onboarded: false, stripe_account_id: null };
+      const notOnboarded = {
+        ...mockArtistProfile,
+        stripe_onboarded: false,
+        stripe_account_id: null,
+      };
       httpService.get.mockReturnValue(of({ data: notOnboarded } as any));
 
-      await expect(service.requestPayout(100, 'Bearer token', 5000)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.requestPayout(100, 'Bearer token', 5000),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when amount is below 1€ minimum', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
-      stripeService.retrieveConnectedBalance.mockResolvedValue({ available: 10000, pending: 0 });
+      stripeService.retrieveConnectedBalance.mockResolvedValue({
+        available: 10000,
+        pending: 0,
+      });
 
-      await expect(service.requestPayout(100, 'Bearer token', 50)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.requestPayout(100, 'Bearer token', 50),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when Stripe balance is insufficient', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
-      stripeService.retrieveConnectedBalance.mockResolvedValue({ available: 1000, pending: 0 });
+      stripeService.retrieveConnectedBalance.mockResolvedValue({
+        available: 1000,
+        pending: 0,
+      });
 
-      await expect(service.requestPayout(100, 'Bearer token', 5000)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.requestPayout(100, 'Bearer token', 5000),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when Stripe balance fetch fails', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
-      stripeService.retrieveConnectedBalance.mockRejectedValue(new Error('Stripe unreachable'));
-
-      await expect(service.requestPayout(100, 'Bearer token', 5000)).rejects.toThrow(
-        BadRequestException,
+      stripeService.retrieveConnectedBalance.mockRejectedValue(
+        new Error('Stripe unreachable'),
       );
+
+      await expect(
+        service.requestPayout(100, 'Bearer token', 5000),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should create payout, debit local wallet, and return success', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
-      stripeService.retrieveConnectedBalance.mockResolvedValue({ available: 10000, pending: 0 });
-      stripeService.createPayout.mockResolvedValue({ id: 'po_test_123' } as any);
+      stripeService.retrieveConnectedBalance.mockResolvedValue({
+        available: 10000,
+        pending: 0,
+      });
+      stripeService.createPayout.mockResolvedValue({
+        id: 'po_test_123',
+      } as any);
       httpService.patch.mockReturnValue(of({ data: {} } as any));
-      walletTxRepo.create.mockReturnValue({ id: 'tx-99', stripe_transfer_id: 'po_test_123' } as any);
-      walletTxRepo.save.mockResolvedValue({ id: 'tx-99', stripe_transfer_id: 'po_test_123' } as any);
+      walletTxRepo.create.mockReturnValue({
+        id: 'tx-99',
+        stripe_transfer_id: 'po_test_123',
+      } as any);
+      walletTxRepo.save.mockResolvedValue({
+        id: 'tx-99',
+        stripe_transfer_id: 'po_test_123',
+      } as any);
 
       const result = await service.requestPayout(100, 'Bearer token', 5000);
 
@@ -335,11 +380,15 @@ describe('WalletService', () => {
 
   describe('handlePayoutFailed', () => {
     it('should throw BadRequestException for null input', async () => {
-      await expect(service.handlePayoutFailed(null as any)).rejects.toThrow(BadRequestException);
+      await expect(service.handlePayoutFailed(null as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException for empty payout id', async () => {
-      await expect(service.handlePayoutFailed({ id: '' })).rejects.toThrow(BadRequestException);
+      await expect(service.handlePayoutFailed({ id: '' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should return not_found when no matching transaction exists', async () => {
@@ -360,7 +409,10 @@ describe('WalletService', () => {
 
       const result = await service.handlePayoutFailed({ id: 'po_123' });
 
-      expect(result).toMatchObject({ recovered: false, reason: 'already_handled' });
+      expect(result).toMatchObject({
+        recovered: false,
+        reason: 'already_handled',
+      });
     });
 
     it('should restore wallet balance and mark transaction as PENDING on failure', async () => {
@@ -391,7 +443,9 @@ describe('WalletService', () => {
 
   describe('handleTransferFailed', () => {
     it('should throw BadRequestException for empty transfer id', async () => {
-      await expect(service.handleTransferFailed({ id: '' })).rejects.toThrow(BadRequestException);
+      await expect(service.handleTransferFailed({ id: '' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should return not_found when no matching transaction exists', async () => {
@@ -412,7 +466,10 @@ describe('WalletService', () => {
 
       const result = await service.handleTransferFailed({ id: 'tr_123' });
 
-      expect(result).toMatchObject({ recovered: false, reason: 'already_handled' });
+      expect(result).toMatchObject({
+        recovered: false,
+        reason: 'already_handled',
+      });
     });
 
     it('should restore wallet balance and mark transaction as PENDING on failure', async () => {

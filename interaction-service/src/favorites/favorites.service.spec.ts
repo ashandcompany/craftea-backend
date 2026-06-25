@@ -34,7 +34,9 @@ describe('FavoritesService', () => {
     }).compile();
 
     service = module.get<FavoritesService>(FavoritesService);
-    favoritesRepo = module.get(getRepositoryToken(Favorite)) as jest.Mocked<Repository<Favorite>>;
+    favoritesRepo = module.get(getRepositoryToken(Favorite)) as jest.Mocked<
+      Repository<Favorite>
+    >;
   });
 
   describe('add', () => {

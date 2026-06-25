@@ -34,18 +34,41 @@ export class OrdersService {
     private configService: ConfigService,
     private orderEventsPublisher: OrderEventsPublisher,
   ) {
-    this.catalogUrl = this.configService.get<string>('CATALOG_URL', 'http://catalog-service:3003');
-    this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
-    this.paymentUrl = this.configService.get<string>('PAYMENT_URL', 'http://payment-service:3007');
-    this.userUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3010');
-    this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
-    this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
-    this.catalogPublicUrl = this.configService.get<string>('CATALOG_PUBLIC_URL', 'http://localhost:3003');
+    this.catalogUrl = this.configService.get<string>(
+      'CATALOG_URL',
+      'http://catalog-service:3003',
+    );
+    this.artistUrl = this.configService.get<string>(
+      'ARTIST_URL',
+      'http://artist-service:3002',
+    );
+    this.paymentUrl = this.configService.get<string>(
+      'PAYMENT_URL',
+      'http://payment-service:3007',
+    );
+    this.userUrl = this.configService.get<string>(
+      'USER_SERVICE_URL',
+      'http://user-service:3010',
+    );
+    this.internalServiceToken = this.configService.get<string>(
+      'INTERNAL_SERVICE_TOKEN',
+      '',
+    );
+    this.appUrl = this.configService.get<string>(
+      'APP_URL',
+      'http://localhost:3000',
+    );
+    this.catalogPublicUrl = this.configService.get<string>(
+      'CATALOG_PUBLIC_URL',
+      'http://localhost:3003',
+    );
   }
 
   async create(dto: CreateOrderDto, userId: number): Promise<Order> {
     if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException('La commande doit contenir au moins un article');
+      throw new BadRequestException(
+        'La commande doit contenir au moins un article',
+      );
     }
 
     const shippingZone = dto.shipping_zone || 'france';
@@ -58,7 +81,9 @@ export class OrdersService {
       for (const item of dto.items) {
         // Récupérer le produit pour obtenir le shop_id et le shipping_fee
         const { data: product } = await firstValueFrom(
-          this.httpService.get(`${this.catalogUrl}/api/products/${item.product_id}`),
+          this.httpService.get(
+            `${this.catalogUrl}/api/products/${item.product_id}`,
+          ),
         );
         if (product?.shop_id) {
           productShopMap.set(item.product_id, product.shop_id);
@@ -74,7 +99,10 @@ export class OrdersService {
             { quantity: item.quantity },
           ),
         );
-        decremented.push({ product_id: item.product_id, quantity: item.quantity });
+        decremented.push({
+          product_id: item.product_id,
+          quantity: item.quantity,
+        });
       }
     } catch (error: any) {
       // Rollback : restaurer le stock des produits déjà décrémentés
@@ -91,7 +119,9 @@ export class OrdersService {
         }
       }
 
-      const msg = error?.response?.data?.message || 'Erreur lors de la vérification du stock';
+      const msg =
+        error?.response?.data?.message ||
+        'Erreur lors de la vérification du stock';
       throw new BadRequestException(msg);
     }
 
@@ -153,7 +183,10 @@ export class OrdersService {
     });
   }
 
-  async findOne(id: number, currentUser: { id: number; role: string }): Promise<Order> {
+  async findOne(
+    id: number,
+    currentUser: { id: number; role: string },
+  ): Promise<Order> {
     const order = await this.ordersRepo.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Commande introuvable');
 
@@ -202,17 +235,31 @@ export class OrdersService {
       OrderStatus.DELIVERED,
     ];
 
-    if (artistOrAdminStatuses.includes(dto.status) && !isAdmin && !isShopOwner) {
-      throw new ForbiddenException('Seul l\'artiste ou un admin peut définir ce statut');
+    if (
+      artistOrAdminStatuses.includes(dto.status) &&
+      !isAdmin &&
+      !isShopOwner
+    ) {
+      throw new ForbiddenException(
+        "Seul l'artiste ou un admin peut définir ce statut",
+      );
     }
 
     // Le client ne peut qu'annuler
-    if (isOwner && !isAdmin && !isShopOwner && dto.status !== OrderStatus.CANCELLED) {
-      throw new ForbiddenException('Vous ne pouvez qu\'annuler votre commande');
+    if (
+      isOwner &&
+      !isAdmin &&
+      !isShopOwner &&
+      dto.status !== OrderStatus.CANCELLED
+    ) {
+      throw new ForbiddenException("Vous ne pouvez qu'annuler votre commande");
     }
 
     // Si annulation : restaurer le stock et refund le paiement
-    if (dto.status === OrderStatus.CANCELLED && order.status !== OrderStatus.CANCELLED) {
+    if (
+      dto.status === OrderStatus.CANCELLED &&
+      order.status !== OrderStatus.CANCELLED
+    ) {
       await this.handleOrderCancellation(order);
     }
 
@@ -273,7 +320,10 @@ export class OrdersService {
         ),
       );
     } catch (error) {
-      console.error(`Failed to emit order.completed for order ${order.id}:`, error);
+      console.error(
+        `Failed to emit order.completed for order ${order.id}:`,
+        error,
+      );
     }
   }
 
@@ -304,7 +354,10 @@ export class OrdersService {
         ),
       );
     } catch (error) {
-      console.error(`Failed to emit order.confirmed for order ${order.id}:`, error);
+      console.error(
+        `Failed to emit order.confirmed for order ${order.id}:`,
+        error,
+      );
     }
 
     // Publish notification event (best-effort)
@@ -314,9 +367,12 @@ export class OrdersService {
   private async publishOrderConfirmedNotification(order: Order): Promise<void> {
     try {
       const { data: user } = await firstValueFrom(
-        this.httpService.get(`${this.userUrl}/api/users/internal/${order.user_id}`, {
-          headers: { 'x-service-token': this.internalServiceToken },
-        }),
+        this.httpService.get(
+          `${this.userUrl}/api/users/internal/${order.user_id}`,
+          {
+            headers: { 'x-service-token': this.internalServiceToken },
+          },
+        ),
       );
 
       // Enrich items with product details (names, images)
@@ -324,19 +380,24 @@ export class OrdersService {
         (order.items ?? []).map(async (item) => {
           try {
             const { data: product } = await firstValueFrom(
-              this.httpService.get(`${this.catalogUrl}/api/products/${item.product_id}`),
+              this.httpService.get(
+                `${this.catalogUrl}/api/products/${item.product_id}`,
+              ),
             );
-            const firstImage = Array.isArray(product.images) && product.images.length > 0
-              ? `${this.catalogPublicUrl}/api/images/${product.images[0].image_url}`
-              : null;
+            const firstImage =
+              Array.isArray(product.images) && product.images.length > 0
+                ? `${this.catalogPublicUrl}/api/images/${product.images[0].image_url}`
+                : null;
             return {
               name: product.title || `Produit #${item.product_id}`,
               image_url: firstImage,
               qty: item.quantity,
               unitPrice: Math.round(Number(item.price) * 100),
             };
-          } catch (err) {
-            this.logger.warn(`Could not fetch product ${item.product_id}: using fallback name`);
+          } catch {
+            this.logger.warn(
+              `Could not fetch product ${item.product_id}: using fallback name`,
+            );
             return {
               name: `Produit #${item.product_id}`,
               image_url: null,
@@ -349,7 +410,9 @@ export class OrdersService {
 
       const orderUrl = `${this.appUrl}/account/orders/${order.id}`;
       const totalCents = Math.round(Number(order.total ?? 0) * 100);
-      const shippingTotalCents = Math.round(Number(order.shipping_total ?? 0) * 100);
+      const shippingTotalCents = Math.round(
+        Number(order.shipping_total ?? 0) * 100,
+      );
       const commission = await this.computeCommissionCents(order);
 
       await this.orderEventsPublisher.publish('order.confirmed', {
@@ -362,19 +425,28 @@ export class OrdersService {
         orderUrl,
       });
     } catch (err) {
-      console.error(`Failed to publish order.confirmed notification for order ${order.id}:`, err);
+      console.error(
+        `Failed to publish order.confirmed notification for order ${order.id}:`,
+        err,
+      );
     }
   }
 
   private async computeCommissionCents(order: Order): Promise<number> {
     try {
       const { data: payments } = await firstValueFrom(
-        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`, {
-          headers: { 'x-service-token': this.internalServiceToken },
-        }),
+        this.httpService.get(
+          `${this.paymentUrl}/api/payments/order/${order.id}`,
+          {
+            headers: { 'x-service-token': this.internalServiceToken },
+          },
+        ),
       );
-      const confirmed = (payments as any[]).find((p: any) => p.commission_amount != null);
-      if (confirmed) return Math.round(Number(confirmed.commission_amount) * 100);
+      const confirmed = (payments as any[]).find(
+        (p: any) => p.commission_amount != null,
+      );
+      if (confirmed)
+        return Math.round(Number(confirmed.commission_amount) * 100);
     } catch {
       // best-effort
     }
@@ -408,16 +480,23 @@ export class OrdersService {
         ),
       );
     } catch (error) {
-      console.error(`Failed to emit order.cancelled for order ${order.id}:`, error);
+      console.error(
+        `Failed to emit order.cancelled for order ${order.id}:`,
+        error,
+      );
     }
   }
 
   private async buildArtistGrossSplits(
     order: Order,
   ): Promise<Array<{ artistId: number; grossAmount: number }>> {
-    const shopIds = [...new Set((order.items || [])
-      .map((item) => item.shop_id)
-      .filter((id): id is number => id != null))];
+    const shopIds = [
+      ...new Set(
+        (order.items || [])
+          .map((item) => item.shop_id)
+          .filter((id): id is number => id != null),
+      ),
+    ];
 
     if (shopIds.length === 0) return [];
 
@@ -441,8 +520,12 @@ export class OrdersService {
       const artistId = shopArtistMap.get(item.shop_id);
       if (!artistId) continue;
 
-      const lineAmountCents = Math.round(Number(item.price) * 100) * item.quantity;
-      artistGrossMap.set(artistId, (artistGrossMap.get(artistId) ?? 0) + lineAmountCents);
+      const lineAmountCents =
+        Math.round(Number(item.price) * 100) * item.quantity;
+      artistGrossMap.set(
+        artistId,
+        (artistGrossMap.get(artistId) ?? 0) + lineAmountCents,
+      );
     }
 
     return [...artistGrossMap.entries()]
@@ -472,9 +555,12 @@ export class OrdersService {
     // 2. Refund le paiement associé à cette commande
     try {
       const payments = await firstValueFrom(
-        this.httpService.get(`${this.paymentUrl}/api/payments/order/${order.id}`, {
-          headers: { 'x-service-token': this.internalServiceToken },
-        }),
+        this.httpService.get(
+          `${this.paymentUrl}/api/payments/order/${order.id}`,
+          {
+            headers: { 'x-service-token': this.internalServiceToken },
+          },
+        ),
       );
 
       const completedPayment = payments.data?.find(
@@ -548,10 +634,15 @@ export class OrdersService {
   /**
    * Vérifie si un artiste (via user_id) est propriétaire d'une des boutiques de la commande
    */
-  private async isArtistOwnerOfOrder(userId: number, order: Order): Promise<boolean> {
+  private async isArtistOwnerOfOrder(
+    userId: number,
+    order: Order,
+  ): Promise<boolean> {
     const shopIds = await this.getArtistShopIds(userId);
     if (shopIds.length === 0) return false;
-    return order.items.some((item) => item.shop_id != null && shopIds.includes(item.shop_id));
+    return order.items.some(
+      (item) => item.shop_id != null && shopIds.includes(item.shop_id),
+    );
   }
 
   /**
@@ -594,9 +685,10 @@ export class OrdersService {
       const profile = profiles.find((p: any) => p.zone === zone);
       const baseFee = profile ? Number(profile.base_fee) : 0;
       const additionalFee = profile ? Number(profile.additional_item_fee) : 0;
-      const freeThreshold = profile?.free_shipping_threshold != null
-        ? Number(profile.free_shipping_threshold)
-        : null;
+      const freeThreshold =
+        profile?.free_shipping_threshold != null
+          ? Number(profile.free_shipping_threshold)
+          : null;
 
       // Si seuil de gratuité atteint → frais = 0 pour cette boutique
       if (freeThreshold !== null && shopSubtotal >= freeThreshold) {

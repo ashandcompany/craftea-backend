@@ -12,7 +12,8 @@ export class AppController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   resetPasswordPreview(): string {
     return resetPasswordTemplate({
-      resetUrl: 'http://localhost:3000/reset-password?token=preview-token-abc123',
+      resetUrl:
+        'http://localhost:3000/reset-password?token=preview-token-abc123',
     });
   }
 }

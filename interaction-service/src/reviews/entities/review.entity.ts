@@ -26,7 +26,10 @@ export class Review {
   @Column({ type: 'text', nullable: true })
   comment: string;
 
-  @OneToMany(() => ReviewImage, (img) => img.review, { eager: true, cascade: true })
+  @OneToMany(() => ReviewImage, (img) => img.review, {
+    eager: true,
+    cascade: true,
+  })
   images: ReviewImage[];
 
   @CreateDateColumn({ name: 'created_at' })

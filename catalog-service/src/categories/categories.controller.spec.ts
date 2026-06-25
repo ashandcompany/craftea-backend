@@ -45,7 +45,12 @@ describe('CategoriesController', () => {
   describe('create', () => {
     it('should create a category', async () => {
       const dto = { name: 'Poterie' };
-      const saved = { id: 1, name: 'Poterie', icon: 'Package', description: null };
+      const saved = {
+        id: 1,
+        name: 'Poterie',
+        icon: 'Package',
+        description: null,
+      };
       service.create.mockResolvedValue(saved);
 
       expect(await controller.create(dto)).toBe(saved);
@@ -56,7 +61,12 @@ describe('CategoriesController', () => {
   describe('update', () => {
     it('should update a category', async () => {
       const dto = { name: 'New Name' };
-      const updated = { id: 1, name: 'New Name', icon: 'Package', description: null };
+      const updated = {
+        id: 1,
+        name: 'New Name',
+        icon: 'Package',
+        description: null,
+      };
       service.update.mockResolvedValue(updated);
 
       expect(await controller.update(1, dto)).toBe(updated);

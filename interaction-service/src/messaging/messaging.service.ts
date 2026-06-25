@@ -33,8 +33,14 @@ export class MessagingService {
       'USER_SERVICE_URL',
       'http://user-service:3010',
     );
-    this.internalToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
-    this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
+    this.internalToken = this.configService.get<string>(
+      'INTERNAL_SERVICE_TOKEN',
+      '',
+    );
+    this.appUrl = this.configService.get<string>(
+      'APP_URL',
+      'http://localhost:3000',
+    );
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -53,9 +59,16 @@ export class MessagingService {
     const nameMap = new Map<number, string>();
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value) {
-        const u = result.value as { id: number; firstname?: string; lastname?: string };
-        const initial = u.lastname ? `${u.lastname.charAt(0).toUpperCase()}.` : '';
-        const name = [u.firstname, initial].filter(Boolean).join(' ') || `User ${u.id}`;
+        const u = result.value as {
+          id: number;
+          firstname?: string;
+          lastname?: string;
+        };
+        const initial = u.lastname
+          ? `${u.lastname.charAt(0).toUpperCase()}.`
+          : '';
+        const name =
+          [u.firstname, initial].filter(Boolean).join(' ') || `User ${u.id}`;
         nameMap.set(ids[index], name);
       }
     });
@@ -70,13 +83,19 @@ export class MessagingService {
   }
 
   /** Récupère les infos complètes d'un user (email inclus) via l'endpoint interne. */
-  private async getUserInternal(
-    id: number,
-  ): Promise<{ id: number; email: string; firstname: string; lastname: string } | null> {
+  private async getUserInternal(id: number): Promise<{
+    id: number;
+    email: string;
+    firstname: string;
+    lastname: string;
+  } | null> {
     try {
-      const res = await fetch(`${this.userServiceUrl}/api/users/internal/${id}`, {
-        headers: { 'x-service-token': this.internalToken },
-      });
+      const res = await fetch(
+        `${this.userServiceUrl}/api/users/internal/${id}`,
+        {
+          headers: { 'x-service-token': this.internalToken },
+        },
+      );
       if (!res.ok) return null;
       return res.json();
     } catch {
@@ -87,9 +106,14 @@ export class MessagingService {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /** Crée ou retourne la conversation entre cet acheteur et cet artisan. */
-  async getOrCreate(userId: number, artistUserId: number): Promise<{ id: number }> {
+  async getOrCreate(
+    userId: number,
+    artistUserId: number,
+  ): Promise<{ id: number }> {
     if (userId === artistUserId) {
-      throw new BadRequestException('Vous ne pouvez pas vous envoyer un message à vous-même');
+      throw new BadRequestException(
+        'Vous ne pouvez pas vous envoyer un message à vous-même',
+      );
     }
 
     const existing = await this.conversationsRepo.findOne({
@@ -117,14 +141,18 @@ export class MessagingService {
     const convIds = conversations.map((c) => c.id);
 
     // Last message per conversation
-    const lastMessages: { conversation_id: number; content: string; created_at: Date; sender_id: number }[] =
-      await this.dataSource.query(
-        `SELECT DISTINCT ON (conversation_id) conversation_id, content, created_at, sender_id
+    const lastMessages: {
+      conversation_id: number;
+      content: string;
+      created_at: Date;
+      sender_id: number;
+    }[] = await this.dataSource.query(
+      `SELECT DISTINCT ON (conversation_id) conversation_id, content, created_at, sender_id
          FROM messages
          WHERE conversation_id = ANY($1)
          ORDER BY conversation_id, created_at DESC`,
-        [convIds],
-      );
+      [convIds],
+    );
 
     const lastMsgMap = new Map(lastMessages.map((m) => [m.conversation_id, m]));
 
@@ -139,10 +167,14 @@ export class MessagingService {
          GROUP BY conversation_id`,
         [convIds, userId],
       );
-    const unreadMap = new Map(unreadRows.map((r) => [r.conversation_id, parseInt(r.count)]));
+    const unreadMap = new Map(
+      unreadRows.map((r) => [r.conversation_id, parseInt(r.count)]),
+    );
 
     // Collect all user IDs to fetch names
-    const userIds = [...new Set(conversations.flatMap((c) => [c.buyer_id, c.artist_id]))];
+    const userIds = [
+      ...new Set(conversations.flatMap((c) => [c.buyer_id, c.artist_id])),
+    ];
     const nameMap = await this.getUserNames(userIds);
 
     return conversations.map((conv) => {
@@ -165,8 +197,15 @@ export class MessagingService {
   }
 
   /** Retourne une conversation et ses messages paginés. */
-  async getMessages(userId: number, conversationId: number, page = 1, limit = 50) {
-    const conv = await this.conversationsRepo.findOne({ where: { id: conversationId } });
+  async getMessages(
+    userId: number,
+    conversationId: number,
+    page = 1,
+    limit = 50,
+  ) {
+    const conv = await this.conversationsRepo.findOne({
+      where: { id: conversationId },
+    });
     if (!conv) throw new NotFoundException('Conversation introuvable');
     this.assertParticipant(conv, userId);
 
@@ -198,12 +237,15 @@ export class MessagingService {
 
   /** Envoie un message dans une conversation. */
   async sendMessage(userId: number, conversationId: number, content: string) {
-    const conv = await this.conversationsRepo.findOne({ where: { id: conversationId } });
+    const conv = await this.conversationsRepo.findOne({
+      where: { id: conversationId },
+    });
     if (!conv) throw new NotFoundException('Conversation introuvable');
     this.assertParticipant(conv, userId);
 
     const trimmed = content.trim();
-    if (!trimmed) throw new BadRequestException('Le message ne peut pas être vide');
+    if (!trimmed)
+      throw new BadRequestException('Le message ne peut pas être vide');
 
     const msg = this.messagesRepo.create({
       conversation_id: conversationId,
@@ -214,12 +256,16 @@ export class MessagingService {
     await this.messagesRepo.save(msg);
 
     // Update conversation updated_at for ordering
-    await this.conversationsRepo.update(conversationId, { updated_at: new Date() });
+    await this.conversationsRepo.update(conversationId, {
+      updated_at: new Date(),
+    });
 
     // Notify recipient by email — fire and forget, never block the response
-    const recipientId = conv.buyer_id === userId ? conv.artist_id : conv.buyer_id;
-    this.notifyRecipient(userId, recipientId, conversationId, trimmed).catch((err) =>
-      this.logger.error(`notifyRecipient failed: ${(err as Error).message}`),
+    const recipientId =
+      conv.buyer_id === userId ? conv.artist_id : conv.buyer_id;
+    this.notifyRecipient(userId, recipientId, conversationId, trimmed).catch(
+      (err) =>
+        this.logger.error(`notifyRecipient failed: ${(err as Error).message}`),
     );
 
     return msg;
@@ -237,19 +283,24 @@ export class MessagingService {
     ]);
 
     if (!recipient?.email) {
-      this.logger.warn(`[message.received] recipient ${recipientId} not found, skipping email`);
+      this.logger.warn(
+        `[message.received] recipient ${recipientId} not found, skipping email`,
+      );
       return;
     }
 
     const senderName = sender
       ? [sender.firstname, sender.lastname].filter(Boolean).join(' ')
-      : 'Quelqu\'un';
+      : "Quelqu'un";
 
-    const preview = content.length > 120 ? `${content.substring(0, 120)}…` : content;
+    const preview =
+      content.length > 120 ? `${content.substring(0, 120)}…` : content;
 
     await this.eventsPublisher.publish('message.received', {
       recipientEmail: recipient.email,
-      recipientName: [recipient.firstname, recipient.lastname].filter(Boolean).join(' '),
+      recipientName: [recipient.firstname, recipient.lastname]
+        .filter(Boolean)
+        .join(' '),
       senderName,
       messagePreview: preview,
       conversationUrl: `${this.appUrl}/account/messages?c=${conversationId}`,
@@ -258,7 +309,9 @@ export class MessagingService {
 
   /** Marque comme lus tous les messages reçus dans cette conversation. */
   async markRead(userId: number, conversationId: number) {
-    const conv = await this.conversationsRepo.findOne({ where: { id: conversationId } });
+    const conv = await this.conversationsRepo.findOne({
+      where: { id: conversationId },
+    });
     if (!conv) throw new NotFoundException('Conversation introuvable');
     this.assertParticipant(conv, userId);
 

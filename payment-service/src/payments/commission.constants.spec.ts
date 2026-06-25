@@ -2,14 +2,14 @@ import { calculateFee, COMMISSION, STRIPE_FEES } from './commission.constants';
 
 describe('calculateFee', () => {
   it('calcule la commission correctement', () => {
-    expect(calculateFee(1000)).toBe(75);  // 1000 * 0.05 + 25
-    expect(calculateFee(100)).toBe(30);   // 100 * 0.05 + 25 = 5 + 25 = 30
-    expect(calculateFee(0)).toBe(25);     // minimum = frais fixes
+    expect(calculateFee(1000)).toBe(75); // 1000 * 0.05 + 25
+    expect(calculateFee(100)).toBe(30); // 100 * 0.05 + 25 = 5 + 25 = 30
+    expect(calculateFee(0)).toBe(25); // minimum = frais fixes
   });
 
   it('applique le taux de 5%', () => {
     expect(calculateFee(10000)).toBe(525); // 10000 * 0.05 + 25
-    expect(calculateFee(5000)).toBe(275);  // 5000 * 0.05 + 25
+    expect(calculateFee(5000)).toBe(275); // 5000 * 0.05 + 25
   });
 
   it('arrondit le résultat au centime le plus proche', () => {

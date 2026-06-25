@@ -12,7 +12,10 @@ describe('JwtStrategy', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((_key: string, defaultValue?: string) => defaultValue ?? 'test-secret'),
+            get: jest.fn(
+              (_key: string, defaultValue?: string) =>
+                defaultValue ?? 'test-secret',
+            ),
           },
         },
       ],

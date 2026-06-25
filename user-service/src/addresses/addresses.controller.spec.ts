@@ -51,7 +51,11 @@ describe('AddressesController', () => {
 
   describe('create', () => {
     it('should create an address', async () => {
-      const dto = { label: 'Maison', street: '10 rue de la Paix', city: 'Paris' };
+      const dto = {
+        label: 'Maison',
+        street: '10 rue de la Paix',
+        city: 'Paris',
+      };
       service.create.mockResolvedValue(mockAddress as any);
 
       const result = await controller.create(dto, mockReq);

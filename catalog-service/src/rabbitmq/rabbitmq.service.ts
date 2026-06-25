@@ -64,7 +64,10 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   /**
    * Publish a message to the catalog exchange with a routing key.
    */
-  async publish(routingKey: string, payload: Record<string, unknown>): Promise<void> {
+  async publish(
+    routingKey: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
     if (!this.channel) {
       this.logger.warn('RabbitMQ channel not available, message dropped');
       return;

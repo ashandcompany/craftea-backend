@@ -59,8 +59,12 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    usersRepo = module.get(getRepositoryToken(User)) as jest.Mocked<Repository<User>>;
-    logsRepo = module.get(getRepositoryToken(Log)) as jest.Mocked<Repository<Log>>;
+    usersRepo = module.get(getRepositoryToken(User)) as jest.Mocked<
+      Repository<User>
+    >;
+    logsRepo = module.get(getRepositoryToken(Log)) as jest.Mocked<
+      Repository<Log>
+    >;
   });
 
   describe('findAll', () => {
@@ -93,7 +97,11 @@ describe('UsersService', () => {
 
   describe('findPublicById', () => {
     it('should return public user info', async () => {
-      const publicUser = { id: 1, firstname: 'Alice', lastname: 'Dupont' } as User;
+      const publicUser = {
+        id: 1,
+        firstname: 'Alice',
+        lastname: 'Dupont',
+      } as User;
       usersRepo.findOne.mockResolvedValue(publicUser);
 
       const result = await service.findPublicById(1);
@@ -108,7 +116,9 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user not found', async () => {
       usersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findPublicById(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findPublicById(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -168,7 +178,9 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user not found', async () => {
       usersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.toggleActive(999, 99)).rejects.toThrow(NotFoundException);
+      await expect(service.toggleActive(999, 99)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -187,7 +199,9 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user not found', async () => {
       usersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.changeRole(999, 'admin', 99)).rejects.toThrow(NotFoundException);
+      await expect(service.changeRole(999, 'admin', 99)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

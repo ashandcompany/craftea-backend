@@ -38,7 +38,9 @@ export class Shop {
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
 
-  @ManyToOne(() => ArtistProfile, (artist) => artist.shops, { onDelete: 'CASCADE' })
+  @ManyToOne(() => ArtistProfile, (artist) => artist.shops, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'artist_id' })
   artist: ArtistProfile;
 }

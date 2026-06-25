@@ -8,10 +8,7 @@ import { OrdersController } from './orders.controller.js';
 import { OrdersInternalController } from './orders-internal.controller.js';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Order, OrderItem]),
-    HttpModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Order, OrderItem]), HttpModule],
   controllers: [OrdersController, OrdersInternalController],
   providers: [OrdersService],
 })

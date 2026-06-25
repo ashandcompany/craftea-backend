@@ -81,7 +81,8 @@ export class ShopsController {
   create(
     @Request() req,
     @Body() dto: CreateShopDto,
-    @UploadedFiles() files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
+    @UploadedFiles()
+    files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
     return this.shopsService.create(dto, req.user.id, files || {});
   }
@@ -94,7 +95,8 @@ export class ShopsController {
     @Param('id', ParseIntPipe) id: number,
     @Request() req,
     @Body() dto: UpdateShopDto,
-    @UploadedFiles() files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
+    @UploadedFiles()
+    files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
     return this.shopsService.update(id, dto, req.user.id, files || {});
   }

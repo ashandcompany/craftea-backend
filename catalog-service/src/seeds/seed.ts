@@ -20,7 +20,8 @@ async function seed() {
   const categories = [
     {
       name: 'Bijoux',
-      description: 'Créations artisanales : colliers, bagues, bracelets faits main.',
+      description:
+        'Créations artisanales : colliers, bagues, bracelets faits main.',
       icon: 'Diamond',
     },
     {

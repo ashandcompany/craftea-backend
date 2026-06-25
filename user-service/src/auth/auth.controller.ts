@@ -20,9 +20,12 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
-import type { Response as ExpressResponse, Request as ExpressRequest } from 'express';
+import type {
+  Response as ExpressResponse,
+  Request as ExpressRequest,
+} from 'express';
 
-const ACCESS_TOKEN_TTL = 15 * 60 * 1000;        // 15 min
+const ACCESS_TOKEN_TTL = 15 * 60 * 1000; // 15 min
 const REFRESH_TOKEN_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 @Controller('auth')
@@ -32,15 +35,30 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {}
 
-  private cookieBase(res: ExpressResponse) {
+  private cookieBase(_res: ExpressResponse) {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
-    return { httpOnly: true, sameSite: 'lax' as const, secure: isProduction, path: '/' };
+    return {
+      httpOnly: true,
+      sameSite: 'lax' as const,
+      secure: isProduction,
+      path: '/',
+    };
   }
 
-  private setTokenCookies(res: ExpressResponse, accessToken: string, refreshToken: string) {
+  private setTokenCookies(
+    res: ExpressResponse,
+    accessToken: string,
+    refreshToken: string,
+  ) {
     const base = this.cookieBase(res);
-    res.cookie('accessToken', accessToken, { ...base, maxAge: ACCESS_TOKEN_TTL });
-    res.cookie('refreshToken', refreshToken, { ...base, maxAge: REFRESH_TOKEN_TTL });
+    res.cookie('accessToken', accessToken, {
+      ...base,
+      maxAge: ACCESS_TOKEN_TTL,
+    });
+    res.cookie('refreshToken', refreshToken, {
+      ...base,
+      maxAge: REFRESH_TOKEN_TTL,
+    });
   }
 
   @Post('register')
@@ -81,11 +99,17 @@ export class AuthController {
     @Request() req: ExpressRequest,
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
-    const refreshToken = (req as any).cookies?.refreshToken as string | undefined;
-    if (!refreshToken) throw new UnauthorizedException('Refresh token manquant');
+    const refreshToken = (req as any).cookies?.refreshToken as
+      | string
+      | undefined;
+    if (!refreshToken)
+      throw new UnauthorizedException('Refresh token manquant');
     const result = await this.authService.refresh(refreshToken);
     const base = this.cookieBase(res);
-    res.cookie('accessToken', result.accessToken, { ...base, maxAge: ACCESS_TOKEN_TTL });
+    res.cookie('accessToken', result.accessToken, {
+      ...base,
+      maxAge: ACCESS_TOKEN_TTL,
+    });
     return { ok: true };
   }
 
@@ -126,7 +150,11 @@ export class AuthController {
     if (dto.newPassword !== dto.confirmPassword) {
       throw new BadRequestException('Les mots de passe ne correspondent pas');
     }
-    await this.authService.changePassword(req.user.id, dto.currentPassword, dto.newPassword);
+    await this.authService.changePassword(
+      req.user.id,
+      dto.currentPassword,
+      dto.newPassword,
+    );
     return { ok: true };
   }
 }

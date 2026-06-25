@@ -60,7 +60,10 @@ describe('CategoriesService', () => {
       const result = await service.findAll();
 
       expect(repo.find).toHaveBeenCalledWith({ order: { name: 'ASC' } });
-      expect(redis.setCache).toHaveBeenCalledWith('categories:list', categories);
+      expect(redis.setCache).toHaveBeenCalledWith(
+        'categories:list',
+        categories,
+      );
       expect(result).toBe(categories);
     });
   });
@@ -103,7 +106,12 @@ describe('CategoriesService', () => {
   describe('create', () => {
     it('should create category and invalidate cache', async () => {
       const dto = { name: 'Poterie', description: 'Artisan pottery' };
-      const entity = { id: 1, name: 'Poterie', description: 'Artisan pottery', icon: 'Package' };
+      const entity = {
+        id: 1,
+        name: 'Poterie',
+        description: 'Artisan pottery',
+        icon: 'Package',
+      };
       repo.create.mockReturnValue(entity);
       repo.save.mockResolvedValue(entity);
 
@@ -139,7 +147,12 @@ describe('CategoriesService', () => {
 
   describe('update', () => {
     it('should update category fields and invalidate cache', async () => {
-      const existing = { id: 1, name: 'Old', description: null, icon: 'Package' };
+      const existing = {
+        id: 1,
+        name: 'Old',
+        description: null,
+        icon: 'Package',
+      };
       repo.findOne.mockResolvedValue(existing);
       repo.save.mockImplementation((e) => Promise.resolve(e));
 
@@ -154,7 +167,9 @@ describe('CategoriesService', () => {
     it('should throw NotFoundException when category does not exist', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      await expect(service.update(999, { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(service.update(999, { name: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

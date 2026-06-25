@@ -21,7 +21,10 @@ export class OrdersInternalController {
   ) {}
 
   private assertInternalToken(serviceToken: string) {
-    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    const expected = this.configService.get<string>(
+      'INTERNAL_SERVICE_TOKEN',
+      '',
+    );
     if (!expected || serviceToken !== expected) {
       throw new ForbiddenException('Invalid service token');
     }
@@ -47,6 +50,9 @@ export class OrdersInternalController {
   ) {
     this.assertInternalToken(serviceToken);
     // Internal call — bypass user ownership check, allow status transition
-    return this.ordersService.updateStatus(id, dto, { id: 0, role: 'internal' } as any);
+    return this.ordersService.updateStatus(id, dto, {
+      id: 0,
+      role: 'internal',
+    } as any);
   }
 }

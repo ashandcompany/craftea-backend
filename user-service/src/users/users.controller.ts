@@ -102,12 +102,20 @@ export class UsersController {
     @Param('id', ParseIntPipe) id: number,
     @Headers('x-service-token') serviceToken: string,
   ) {
-    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    const expected = this.configService.get<string>(
+      'INTERNAL_SERVICE_TOKEN',
+      '',
+    );
     if (!expected || serviceToken !== expected) {
       throw new ForbiddenException('Invalid service token');
     }
     const user = await this.usersService.findById(id);
     if (!user) throw new NotFoundException('Utilisateur introuvable');
-    return { id: user.id, email: user.email, firstname: user.firstname, lastname: user.lastname };
+    return {
+      id: user.id,
+      email: user.email,
+      firstname: user.firstname,
+      lastname: user.lastname,
+    };
   }
 }

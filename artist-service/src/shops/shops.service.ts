@@ -7,7 +7,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Shop } from './entities/shop.entity.js';
-import { ShopShippingProfile, ShippingZone } from './entities/shop-shipping-profile.entity.js';
+import {
+  ShopShippingProfile,
+  ShippingZone,
+} from './entities/shop-shipping-profile.entity.js';
 import { ShopShippingMethod } from './entities/shop-shipping-method.entity.js';
 import { ArtistProfile } from '../artists/entities/artist-profile.entity.js';
 import { MinioService } from '../minio/minio.service.js';
@@ -20,16 +23,23 @@ import { UpdateShippingMethodsDto } from './dto/shipping-method.dto.js';
 export class ShopsService {
   constructor(
     @InjectRepository(Shop) private shopsRepo: Repository<Shop>,
-    @InjectRepository(ShopShippingProfile) private shippingRepo: Repository<ShopShippingProfile>,
-    @InjectRepository(ShopShippingMethod) private methodsRepo: Repository<ShopShippingMethod>,
-    @InjectRepository(ArtistProfile) private artistsRepo: Repository<ArtistProfile>,
+    @InjectRepository(ShopShippingProfile)
+    private shippingRepo: Repository<ShopShippingProfile>,
+    @InjectRepository(ShopShippingMethod)
+    private methodsRepo: Repository<ShopShippingMethod>,
+    @InjectRepository(ArtistProfile)
+    private artistsRepo: Repository<ArtistProfile>,
     private minioService: MinioService,
   ) {}
 
   private async getArtistProfile(userId: number): Promise<ArtistProfile> {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile)
-      throw new BadRequestException('Profil artiste requis pour créer une boutique');
+      throw new BadRequestException(
+        'Profil artiste requis pour créer une boutique',
+      );
     return profile;
   }
 
@@ -63,7 +73,9 @@ export class ShopsService {
   }
 
   async findByUserId(userId: number) {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) return [];
     return this.shopsRepo.find({ where: { artist_id: profile.id } });
   }
@@ -83,7 +95,9 @@ export class ShopsService {
     userId: number,
     files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new ForbiddenException('Accès interdit');
 
     const shop = await this.shopsRepo.findOne({
@@ -108,7 +122,9 @@ export class ShopsService {
   }
 
   async remove(id: number, userId: number) {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new ForbiddenException('Accès interdit');
 
     const shop = await this.shopsRepo.findOne({
@@ -140,7 +156,9 @@ export class ShopsService {
     dto: UpdateShippingProfilesDto,
     userId: number,
   ): Promise<ShopShippingProfile[]> {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new ForbiddenException('Accès interdit');
 
     const shop = await this.shopsRepo.findOne({
@@ -152,7 +170,7 @@ export class ShopsService {
     const submittedZones = dto.profiles.map((p) => p.zone);
 
     for (const p of dto.profiles) {
-      let existing = await this.shippingRepo.findOne({
+      const existing = await this.shippingRepo.findOne({
         where: { shop_id: shopId, zone: p.zone },
       });
 
@@ -227,7 +245,9 @@ export class ShopsService {
     dto: UpdateShippingMethodsDto,
     userId: number,
   ): Promise<ShopShippingMethod[]> {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new ForbiddenException('Accès interdit');
 
     const shop = await this.shopsRepo.findOne({
@@ -236,12 +256,12 @@ export class ShopsService {
     if (!shop) throw new NotFoundException('Boutique introuvable');
 
     // Collect IDs sent by the client (existing methods to keep/update)
-    const sentIds = dto.methods
-      .filter((m) => m.id)
-      .map((m) => m.id as number);
+    const sentIds = dto.methods.filter((m) => m.id).map((m) => m.id as number);
 
     // Delete methods that were removed by the user
-    const existing = await this.methodsRepo.find({ where: { shop_id: shopId } });
+    const existing = await this.methodsRepo.find({
+      where: { shop_id: shopId },
+    });
     const toDelete = existing.filter((e) => !sentIds.includes(e.id));
     if (toDelete.length > 0) {
       await this.methodsRepo.remove(toDelete);

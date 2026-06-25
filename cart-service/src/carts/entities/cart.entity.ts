@@ -22,6 +22,9 @@ export class Cart {
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
 
-  @OneToMany(() => CartItem, (item) => item.cart, { cascade: true, eager: true })
+  @OneToMany(() => CartItem, (item) => item.cart, {
+    cascade: true,
+    eager: true,
+  })
   items: CartItem[];
 }

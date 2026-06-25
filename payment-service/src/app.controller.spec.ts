@@ -13,6 +13,9 @@ describe('AppController', () => {
   });
 
   it('should return health status', () => {
-    expect(controller.health()).toEqual({ status: 'ok', service: 'payment-service' });
+    expect(controller.health()).toEqual({
+      status: 'ok',
+      service: 'payment-service',
+    });
   });
 });

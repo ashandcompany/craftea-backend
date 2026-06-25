@@ -32,7 +32,8 @@ export class AddressesService {
 
   async remove(id: number, userId: number) {
     const result = await this.addressesRepo.delete({ id, user_id: userId });
-    if (result.affected === 0) throw new NotFoundException('Adresse introuvable');
+    if (result.affected === 0)
+      throw new NotFoundException('Adresse introuvable');
     return { message: 'Adresse supprimée' };
   }
 }

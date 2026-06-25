@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken, getDataSourceToken } from '@nestjs/typeorm';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import {
   ConflictException,
   NotFoundException,
@@ -17,7 +17,7 @@ import { MinioService } from '../minio/minio.service';
 describe('ReviewsService', () => {
   let service: ReviewsService;
   let reviewsRepo: jest.Mocked<Repository<Review>>;
-  let reviewImagesRepo: jest.Mocked<Repository<ReviewImage>>;
+  let _reviewImagesRepo: jest.Mocked<Repository<ReviewImage>>;
   let dataSource: jest.Mocked<DataSource>;
 
   const mockReview: Review = {
@@ -71,13 +71,21 @@ describe('ReviewsService', () => {
     }).compile();
 
     service = module.get<ReviewsService>(ReviewsService);
-    reviewsRepo = module.get(getRepositoryToken(Review)) as jest.Mocked<Repository<Review>>;
-    reviewImagesRepo = module.get(getRepositoryToken(ReviewImage)) as jest.Mocked<Repository<ReviewImage>>;
+    reviewsRepo = module.get(getRepositoryToken(Review)) as jest.Mocked<
+      Repository<Review>
+    >;
+    _reviewImagesRepo = module.get(
+      getRepositoryToken(ReviewImage),
+    ) as jest.Mocked<Repository<ReviewImage>>;
     dataSource = module.get(DataSource) as jest.Mocked<DataSource>;
   });
 
   describe('create', () => {
-    const dto = { product_id: 42, rating: 4, comment: 'Very nice product, I love it!' };
+    const dto = {
+      product_id: 42,
+      rating: 4,
+      comment: 'Very nice product, I love it!',
+    };
 
     it('should create a review', async () => {
       // No previous review (anti-spam)
@@ -177,7 +185,9 @@ describe('ReviewsService', () => {
         select: jest.fn().mockReturnThis(),
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        getRawOne: jest.fn().mockResolvedValue({ average: '4.25', count: '10' }),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValue({ average: '4.25', count: '10' }),
       };
       reviewsRepo.createQueryBuilder.mockReturnValue(qb as any);
 
@@ -228,17 +238,17 @@ describe('ReviewsService', () => {
     it('should throw NotFoundException if review does not exist', async () => {
       reviewsRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.update(999, 100, 'user', { rating: 3 })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.update(999, 100, 'user', { rating: 3 }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException if user is not owner and not admin', async () => {
       reviewsRepo.findOne.mockResolvedValue(mockReview);
 
-      await expect(service.update(1, 999, 'user', { rating: 3 })).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.update(1, 999, 'user', { rating: 3 }),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw BadRequestException if no modification provided', async () => {
@@ -281,13 +291,17 @@ describe('ReviewsService', () => {
     it('should throw NotFoundException if review does not exist', async () => {
       reviewsRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.remove(999, 100, 'user')).rejects.toThrow(NotFoundException);
+      await expect(service.remove(999, 100, 'user')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ForbiddenException if user is not owner and not admin', async () => {
       reviewsRepo.findOne.mockResolvedValue(mockReview);
 
-      await expect(service.remove(1, 999, 'user')).rejects.toThrow(ForbiddenException);
+      await expect(service.remove(1, 999, 'user')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

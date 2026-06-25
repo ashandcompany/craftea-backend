@@ -7,7 +7,10 @@ import { ArtistVerificationDocument } from './entities/artist-verification-docum
 import { ArtistEventsModule } from '../rabbitmq/artist-events.module.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ArtistProfile, ArtistVerificationDocument]), ArtistEventsModule],
+  imports: [
+    TypeOrmModule.forFeature([ArtistProfile, ArtistVerificationDocument]),
+    ArtistEventsModule,
+  ],
   controllers: [ArtistsController],
   providers: [ArtistsService],
   exports: [ArtistsService],

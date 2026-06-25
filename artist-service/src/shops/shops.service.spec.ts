@@ -1,10 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { ShopsService } from './shops.service';
 import { Shop } from './entities/shop.entity';
-import { ShopShippingProfile, ShippingZone } from './entities/shop-shipping-profile.entity';
+import {
+  ShopShippingProfile,
+  ShippingZone,
+} from './entities/shop-shipping-profile.entity';
 import { ShopShippingMethod } from './entities/shop-shipping-method.entity';
 import { ArtistProfile } from '../artists/entities/artist-profile.entity';
 import { MinioService } from '../minio/minio.service';
@@ -15,7 +22,7 @@ describe('ShopsService', () => {
   let service: ShopsService;
   let shopsRepository: jest.Mocked<Repository<Shop>>;
   let shippingRepository: jest.Mocked<Repository<ShopShippingProfile>>;
-  let methodsRepository: jest.Mocked<Repository<ShopShippingMethod>>;
+  let _methodsRepository: jest.Mocked<Repository<ShopShippingMethod>>;
   let artistsRepository: jest.Mocked<Repository<ArtistProfile>>;
   let minioService: jest.Mocked<MinioService>;
 
@@ -92,11 +99,21 @@ describe('ShopsService', () => {
     }).compile();
 
     service = module.get<ShopsService>(ShopsService);
-    shopsRepository = module.get(getRepositoryToken(Shop)) as jest.Mocked<Repository<Shop>>;
-    shippingRepository = module.get(getRepositoryToken(ShopShippingProfile)) as jest.Mocked<Repository<ShopShippingProfile>>;
-    methodsRepository = module.get(getRepositoryToken(ShopShippingMethod)) as jest.Mocked<Repository<ShopShippingMethod>>;
-    artistsRepository = module.get(getRepositoryToken(ArtistProfile)) as jest.Mocked<Repository<ArtistProfile>>;
-    minioService = module.get<MinioService>(MinioService) as jest.Mocked<MinioService>;
+    shopsRepository = module.get(getRepositoryToken(Shop)) as jest.Mocked<
+      Repository<Shop>
+    >;
+    shippingRepository = module.get(
+      getRepositoryToken(ShopShippingProfile),
+    ) as jest.Mocked<Repository<ShopShippingProfile>>;
+    _methodsRepository = module.get(
+      getRepositoryToken(ShopShippingMethod),
+    ) as jest.Mocked<Repository<ShopShippingMethod>>;
+    artistsRepository = module.get(
+      getRepositoryToken(ArtistProfile),
+    ) as jest.Mocked<Repository<ArtistProfile>>;
+    minioService = module.get<MinioService>(
+      MinioService,
+    ) as jest.Mocked<MinioService>;
   });
 
   describe('create', () => {

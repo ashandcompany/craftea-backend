@@ -46,7 +46,12 @@ export class EmailService {
 
     if (this.smtpTransport) {
       try {
-        await this.smtpTransport.sendMail({ from: this.from, to, subject, html });
+        await this.smtpTransport.sendMail({
+          from: this.from,
+          to,
+          subject,
+          html,
+        });
       } catch (err) {
         this.logger.error(
           `Failed to send SMTP email to ${to}: ${(err as Error).message}`,

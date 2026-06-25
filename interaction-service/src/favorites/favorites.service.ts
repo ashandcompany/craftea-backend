@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Favorite } from './entities/favorite.entity.js';
@@ -57,7 +61,9 @@ export class FavoritesService {
   }
 
   async count(productId: number) {
-    const count = await this.favoritesRepo.count({ where: { product_id: productId } });
+    const count = await this.favoritesRepo.count({
+      where: { product_id: productId },
+    });
     return { product_id: productId, count };
   }
 }

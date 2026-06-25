@@ -50,28 +50,45 @@ export class MinioService implements OnModuleInit {
       ],
     };
     await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
-    this.logger.log(`Bucket "${this.bucket}" ready with public-read on * except verifications/`);
+    this.logger.log(
+      `Bucket "${this.bucket}" ready with public-read on * except verifications/`,
+    );
   }
 
   async uploadFile(file: Express.Multer.File): Promise<string> {
     const ext = path.extname(file.originalname) || '.jpg';
     const objectName = `public/${uuidv4()}${ext}`;
-    await this.client.putObject(this.bucket, objectName, file.buffer, file.size, {
-      'Content-Type': file.mimetype,
-    });
+    await this.client.putObject(
+      this.bucket,
+      objectName,
+      file.buffer,
+      file.size,
+      {
+        'Content-Type': file.mimetype,
+      },
+    );
     return objectName;
   }
 
   async uploadVerificationFile(file: Express.Multer.File): Promise<string> {
     const ext = path.extname(file.originalname) || '.bin';
     const objectName = `verifications/${uuidv4()}${ext}`;
-    await this.client.putObject(this.bucket, objectName, file.buffer, file.size, {
-      'Content-Type': file.mimetype,
-    });
+    await this.client.putObject(
+      this.bucket,
+      objectName,
+      file.buffer,
+      file.size,
+      {
+        'Content-Type': file.mimetype,
+      },
+    );
     return objectName;
   }
 
-  async getPresignedUrl(objectName: string, expirySeconds = 3600): Promise<string> {
+  async getPresignedUrl(
+    objectName: string,
+    expirySeconds = 3600,
+  ): Promise<string> {
     const key = this.objectNameFromUrl(objectName) ?? objectName;
     return this.client.presignedGetObject(this.bucket, key, expirySeconds);
   }

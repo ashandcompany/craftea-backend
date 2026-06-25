@@ -70,7 +70,9 @@ export class OrderEventsPublisher implements OnModuleInit, OnModuleDestroy {
       });
       this.logger.debug(`Published [${pattern}] to ${NOTIFICATIONS_QUEUE}`);
     } catch (err) {
-      this.logger.error(`Failed to publish [${pattern}]: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to publish [${pattern}]: ${(err as Error).message}`,
+      );
     }
   }
 }

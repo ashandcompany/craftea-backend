@@ -13,7 +13,11 @@ import { PaymentEventsModule } from '../rabbitmq/payment-events.module.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, WalletTransaction, ProcessedWebhookEvent]),
+    TypeOrmModule.forFeature([
+      Payment,
+      WalletTransaction,
+      ProcessedWebhookEvent,
+    ]),
     HttpModule,
     PaymentEventsModule,
   ],

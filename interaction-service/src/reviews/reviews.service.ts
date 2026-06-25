@@ -35,7 +35,8 @@ export class ReviewsService {
     if (!reviews.length) return reviews;
 
     const userIds = [...new Set(reviews.map((r) => r.user_id).filter(Boolean))];
-    if (!userIds.length) return reviews.map((r) => ({ ...r, reviewer_name: null }));
+    if (!userIds.length)
+      return reviews.map((r) => ({ ...r, reviewer_name: null }));
 
     try {
       const users: { id: number; firstname: string; lastname: string }[] =
@@ -49,7 +50,9 @@ export class ReviewsService {
           const lastnameInitial = u.lastname
             ? `${u.lastname.charAt(0).toUpperCase()}.`
             : '';
-          const fullName = [u.firstname, lastnameInitial].filter(Boolean).join(' ');
+          const fullName = [u.firstname, lastnameInitial]
+            .filter(Boolean)
+            .join(' ');
           return [u.id, fullName || null];
         }),
       );
@@ -64,7 +67,11 @@ export class ReviewsService {
     }
   }
 
-  async create(userId: number, dto: { product_id: number; rating: number; comment?: string }, files: Express.Multer.File[] = []) {
+  async create(
+    userId: number,
+    dto: { product_id: number; rating: number; comment?: string },
+    files: Express.Multer.File[] = [],
+  ) {
     // Anti-spam
     const lastReview = await this.reviewsRepo.findOne({
       where: { user_id: userId },
@@ -87,12 +94,20 @@ export class ReviewsService {
       where: { user_id: userId, product_id: dto.product_id },
     });
     if (existing) {
-      throw new ConflictException('Vous avez déjà posté un avis pour ce produit');
+      throw new ConflictException(
+        'Vous avez déjà posté un avis pour ce produit',
+      );
     }
 
     // Moderate short comments
-    if (dto.comment && dto.comment.trim().length > 0 && dto.comment.trim().length < 10) {
-      throw new UnprocessableEntityException('Le commentaire doit faire au moins 10 caractères');
+    if (
+      dto.comment &&
+      dto.comment.trim().length > 0 &&
+      dto.comment.trim().length < 10
+    ) {
+      throw new UnprocessableEntityException(
+        'Le commentaire doit faire au moins 10 caractères',
+      );
     }
 
     const review = this.reviewsRepo.create({
@@ -111,7 +126,9 @@ export class ReviewsService {
         const url = await this.minioService.uploadFile(file);
         imgRecords.push({ review_id: review.id, image_url: url });
       }
-      await this.reviewImagesRepo.save(imgRecords.map((r) => this.reviewImagesRepo.create(r)));
+      await this.reviewImagesRepo.save(
+        imgRecords.map((r) => this.reviewImagesRepo.create(r)),
+      );
     }
 
     return this.reviewsRepo.findOne({ where: { id: review.id } });
@@ -141,7 +158,9 @@ export class ReviewsService {
 
     return {
       product_id: productId,
-      average: result.average ? parseFloat(parseFloat(result.average).toFixed(2)) : null,
+      average: result.average
+        ? parseFloat(parseFloat(result.average).toFixed(2))
+        : null,
       count: parseInt(result.count) || 0,
     };
   }
@@ -162,12 +181,22 @@ export class ReviewsService {
       throw new ForbiddenException('Accès interdit');
     }
 
-    if (dto.rating === undefined && dto.comment === undefined && files.length === 0) {
+    if (
+      dto.rating === undefined &&
+      dto.comment === undefined &&
+      files.length === 0
+    ) {
       throw new BadRequestException('Aucune modification fournie');
     }
 
-    if (dto.comment !== undefined && dto.comment.trim().length > 0 && dto.comment.trim().length < 10) {
-      throw new UnprocessableEntityException('Le commentaire doit faire au moins 10 caractères');
+    if (
+      dto.comment !== undefined &&
+      dto.comment.trim().length > 0 &&
+      dto.comment.trim().length < 10
+    ) {
+      throw new UnprocessableEntityException(
+        'Le commentaire doit faire au moins 10 caractères',
+      );
     }
 
     if (dto.rating !== undefined) review.rating = dto.rating;
@@ -176,7 +205,9 @@ export class ReviewsService {
 
     // Replace images if new ones are provided
     if (files.length) {
-      const existing = await this.reviewImagesRepo.find({ where: { review_id: reviewId } });
+      const existing = await this.reviewImagesRepo.find({
+        where: { review_id: reviewId },
+      });
       for (const img of existing) {
         await this.minioService.deleteFile(img.image_url);
       }
@@ -188,7 +219,9 @@ export class ReviewsService {
         const url = await this.minioService.uploadFile(file);
         imgRecords.push({ review_id: review.id, image_url: url });
       }
-      await this.reviewImagesRepo.save(imgRecords.map((r) => this.reviewImagesRepo.create(r)));
+      await this.reviewImagesRepo.save(
+        imgRecords.map((r) => this.reviewImagesRepo.create(r)),
+      );
     }
 
     return this.reviewsRepo.findOne({ where: { id: reviewId } });
@@ -205,7 +238,9 @@ export class ReviewsService {
     }
 
     // Delete images from storage
-    const images = await this.reviewImagesRepo.find({ where: { review_id: reviewId } });
+    const images = await this.reviewImagesRepo.find({
+      where: { review_id: reviewId },
+    });
     for (const img of images) {
       await this.minioService.deleteFile(img.image_url);
     }

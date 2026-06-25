@@ -3,11 +3,10 @@ import {
   IsString,
   IsNumber,
   IsInt,
-  IsBoolean,
   IsArray,
   IsIn,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 
 export class CreateProductDto {
   @IsOptional()
@@ -73,11 +72,18 @@ export class CreateProductDto {
   shipping_fee?: number;
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? JSON.parse(value) : value,
+  )
   @IsArray()
   tags?: number[];
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
-  variants?: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }>;
+  @Transform(({ value }) =>
+    typeof value === 'string' ? JSON.parse(value) : value,
+  )
+  variants?: Array<{
+    name: string;
+    options: Array<{ label: string; stock: number; price?: number | null }>;
+  }>;
 }

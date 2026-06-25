@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cart } from './entities/cart.entity.js';
@@ -65,10 +62,15 @@ export class CartsService {
   /**
    * Met à jour la quantité d'un item du panier.
    */
-  async updateItem(userId: number, itemId: number, dto: UpdateItemDto): Promise<Cart> {
+  async updateItem(
+    userId: number,
+    itemId: number,
+    dto: UpdateItemDto,
+  ): Promise<Cart> {
     const cart = await this.getOrCreateCart(userId);
     const item = cart.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Article introuvable dans le panier');
+    if (!item)
+      throw new NotFoundException('Article introuvable dans le panier');
 
     item.quantity = dto.quantity;
     await this.itemsRepo.save(item);
@@ -82,7 +84,8 @@ export class CartsService {
   async removeItem(userId: number, itemId: number): Promise<Cart> {
     const cart = await this.getOrCreateCart(userId);
     const item = cart.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Article introuvable dans le panier');
+    if (!item)
+      throw new NotFoundException('Article introuvable dans le panier');
 
     await this.itemsRepo.remove(item);
 

@@ -72,7 +72,9 @@ export class UpdateProductDto {
   delivery_time_unit?: 'days' | 'weeks';
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? JSON.parse(value) : value,
+  )
   @IsArray()
   tags?: number[];
 
@@ -82,16 +84,25 @@ export class UpdateProductDto {
   shipping_fee?: number;
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? JSON.parse(value) : value,
+  )
   @IsArray()
   images_to_delete?: number[];
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? JSON.parse(value) : value,
+  )
   @IsArray()
   image_order?: number[];
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
-  variants?: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }>;
+  @Transform(({ value }) =>
+    typeof value === 'string' ? JSON.parse(value) : value,
+  )
+  variants?: Array<{
+    name: string;
+    options: Array<{ label: string; stock: number; price?: number | null }>;
+  }>;
 }

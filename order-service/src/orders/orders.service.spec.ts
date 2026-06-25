@@ -29,7 +29,7 @@ describe('OrdersService', () => {
   let ordersRepo: jest.Mocked<Repository<Order>>;
   let itemsRepo: jest.Mocked<Repository<OrderItem>>;
   let httpService: jest.Mocked<HttpService>;
-  let configService: jest.Mocked<ConfigService>;
+  let _configService: jest.Mocked<ConfigService>;
 
   const mockItems: OrderItem[] = [
     {
@@ -92,10 +92,14 @@ describe('OrdersService', () => {
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
-    ordersRepo = module.get(getRepositoryToken(Order)) as jest.Mocked<Repository<Order>>;
-    itemsRepo = module.get(getRepositoryToken(OrderItem)) as jest.Mocked<Repository<OrderItem>>;
+    ordersRepo = module.get(getRepositoryToken(Order)) as jest.Mocked<
+      Repository<Order>
+    >;
+    itemsRepo = module.get(getRepositoryToken(OrderItem)) as jest.Mocked<
+      Repository<OrderItem>
+    >;
     httpService = module.get(HttpService) as jest.Mocked<HttpService>;
-    configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
+    _configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
   });
 
   describe('create', () => {
@@ -293,9 +297,7 @@ describe('OrdersService', () => {
         status: OrderStatus.CONFIRMED,
       });
       // getArtistShopIds returns matching shop
-      httpService.get.mockReturnValue(
-        of(axiosResponse([{ id: 5 }])),
-      );
+      httpService.get.mockReturnValue(of(axiosResponse([{ id: 5 }])));
 
       const result = await service.updateStatus(
         1,

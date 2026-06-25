@@ -6,9 +6,7 @@ import { CreateTagDto } from './dto/create-tag.dto.js';
 
 @Injectable()
 export class TagsService {
-  constructor(
-    @InjectRepository(Tag) private tagsRepo: Repository<Tag>,
-  ) {}
+  constructor(@InjectRepository(Tag) private tagsRepo: Repository<Tag>) {}
 
   async findAll() {
     return this.tagsRepo.find({ order: { name: 'ASC' } });

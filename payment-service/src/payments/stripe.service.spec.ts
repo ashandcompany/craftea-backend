@@ -56,17 +56,17 @@ describe('StripeService', () => {
     it('should throw when webhook secret is missing', () => {
       (service as any).webhookSecret = '';
 
-      expect(() => service.constructWebhookEvent(Buffer.from('{}'), 'sig')).toThrow(
-        'STRIPE_WEBHOOK_SECRET manquant',
-      );
+      expect(() =>
+        service.constructWebhookEvent(Buffer.from('{}'), 'sig'),
+      ).toThrow('STRIPE_WEBHOOK_SECRET manquant');
     });
 
     it('should throw when webhook secret does not start with whsec_', () => {
       (service as any).webhookSecret = 'sk_test_wrong_format';
 
-      expect(() => service.constructWebhookEvent(Buffer.from('{}'), 'sig')).toThrow(
-        'STRIPE_WEBHOOK_SECRET invalide',
-      );
+      expect(() =>
+        service.constructWebhookEvent(Buffer.from('{}'), 'sig'),
+      ).toThrow('STRIPE_WEBHOOK_SECRET invalide');
     });
   });
 
@@ -117,7 +117,11 @@ describe('StripeService', () => {
     it('should lowercase the currency', async () => {
       mockStripe.paymentIntents.create.mockResolvedValue({ id: 'pi_1' });
 
-      await service.createPaymentIntent({ amount: 1000, currency: 'EUR', idempotencyKey: 'k1' });
+      await service.createPaymentIntent({
+        amount: 1000,
+        currency: 'EUR',
+        idempotencyKey: 'k1',
+      });
 
       expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
         expect.objectContaining({ currency: 'eur' }),
@@ -128,7 +132,11 @@ describe('StripeService', () => {
     it('should use empty metadata when not provided', async () => {
       mockStripe.paymentIntents.create.mockResolvedValue({ id: 'pi_2' });
 
-      await service.createPaymentIntent({ amount: 1000, currency: 'eur', idempotencyKey: 'k2' });
+      await service.createPaymentIntent({
+        amount: 1000,
+        currency: 'eur',
+        idempotencyKey: 'k2',
+      });
 
       expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
         expect.objectContaining({ metadata: {} }),
@@ -139,7 +147,11 @@ describe('StripeService', () => {
     it('should not add transfer_data when transferDestination is absent', async () => {
       mockStripe.paymentIntents.create.mockResolvedValue({ id: 'pi_3' });
 
-      await service.createPaymentIntent({ amount: 1000, currency: 'eur', idempotencyKey: 'k3' });
+      await service.createPaymentIntent({
+        amount: 1000,
+        currency: 'eur',
+        idempotencyKey: 'k3',
+      });
 
       const [params] = mockStripe.paymentIntents.create.mock.calls[0];
       expect(params).not.toHaveProperty('transfer_data');
@@ -154,7 +166,9 @@ describe('StripeService', () => {
 
       const result = await service.retrievePaymentIntent('pi_retrieve');
 
-      expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith('pi_retrieve');
+      expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
+        'pi_retrieve',
+      );
       expect(result).toEqual(mockIntent);
     });
   });
@@ -217,7 +231,11 @@ describe('StripeService', () => {
     it('should lowercase the currency', async () => {
       mockStripe.transfers.create.mockResolvedValue({ id: 'tr_2' });
 
-      await service.createTransfer({ amount: 1000, currency: 'EUR', destination: 'acct_x' });
+      await service.createTransfer({
+        amount: 1000,
+        currency: 'EUR',
+        destination: 'acct_x',
+      });
 
       expect(mockStripe.transfers.create).toHaveBeenCalledWith(
         expect.objectContaining({ currency: 'eur' }),
@@ -247,7 +265,11 @@ describe('StripeService', () => {
     it('should lowercase the currency', async () => {
       mockStripe.payouts.create.mockResolvedValue({ id: 'po_2' });
 
-      await service.createPayout({ amount: 1000, currency: 'EUR', stripeAccountId: 'acct_y' });
+      await service.createPayout({
+        amount: 1000,
+        currency: 'EUR',
+        stripeAccountId: 'acct_y',
+      });
 
       expect(mockStripe.payouts.create).toHaveBeenCalledWith(
         expect.objectContaining({ currency: 'eur' }),

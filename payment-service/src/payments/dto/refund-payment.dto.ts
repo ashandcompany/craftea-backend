@@ -1,5 +1,4 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { PaymentStatus } from '../entities/payment.entity.js';
+import { IsOptional, IsString } from 'class-validator';
 
 export class RefundPaymentDto {
   @IsString()

@@ -18,7 +18,9 @@ jest.mock('amqplib', () => ({
 }));
 
 import { connect as amqplibConnect } from 'amqplib';
-const mockConnect = amqplibConnect as jest.MockedFunction<typeof amqplibConnect>;
+const mockConnect = amqplibConnect as jest.MockedFunction<
+  typeof amqplibConnect
+>;
 
 describe('PaymentEventsPublisher', () => {
   let publisher: PaymentEventsPublisher;
@@ -36,7 +38,9 @@ describe('PaymentEventsPublisher', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((_key: string, defaultValue?: string) => defaultValue ?? ''),
+            get: jest.fn(
+              (_key: string, defaultValue?: string) => defaultValue ?? '',
+            ),
           },
         },
       ],
@@ -53,11 +57,16 @@ describe('PaymentEventsPublisher', () => {
 
       expect(mockConnect).toHaveBeenCalled();
       expect(mockConnection.createChannel).toHaveBeenCalled();
-      expect(mockChannel.assertQueue).toHaveBeenCalledWith('notifications', { durable: true });
+      expect(mockChannel.assertQueue).toHaveBeenCalledWith('notifications', {
+        durable: true,
+      });
     });
 
     it('should log error after all retries fail without throwing', async () => {
-      jest.spyOn(global, 'setTimeout').mockImplementation((fn: any) => { fn(); return null as any; });
+      jest.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+        fn();
+        return null as any;
+      });
       mockConnect.mockRejectedValue(new Error('ECONNREFUSED'));
 
       await expect(publisher.onModuleInit()).resolves.toBeUndefined();
@@ -93,7 +102,10 @@ describe('PaymentEventsPublisher', () => {
     });
 
     it('should send serialized message to notifications queue', async () => {
-      await publisher.publish('payout.succeeded', { artistEmail: 'a@b.com', amount: 5000 });
+      await publisher.publish('payout.succeeded', {
+        artistEmail: 'a@b.com',
+        amount: 5000,
+      });
 
       expect(mockChannel.sendToQueue).toHaveBeenCalledWith(
         'notifications',
@@ -103,21 +115,30 @@ describe('PaymentEventsPublisher', () => {
 
       const [, buffer] = mockChannel.sendToQueue.mock.calls[0];
       const parsed = JSON.parse(buffer.toString());
-      expect(parsed).toEqual({ pattern: 'payout.succeeded', data: { artistEmail: 'a@b.com', amount: 5000 } });
+      expect(parsed).toEqual({
+        pattern: 'payout.succeeded',
+        data: { artistEmail: 'a@b.com', amount: 5000 },
+      });
     });
 
     it('should log warning and return early when channel is not available', async () => {
       (publisher as any).channel = null;
 
-      await expect(publisher.publish('payout.succeeded', {})).resolves.toBeUndefined();
+      await expect(
+        publisher.publish('payout.succeeded', {}),
+      ).resolves.toBeUndefined();
 
       expect(mockChannel.sendToQueue).not.toHaveBeenCalled();
     });
 
     it('should log error when sendToQueue throws', async () => {
-      mockChannel.sendToQueue.mockImplementation(() => { throw new Error('queue full'); });
+      mockChannel.sendToQueue.mockImplementation(() => {
+        throw new Error('queue full');
+      });
 
-      await expect(publisher.publish('payout.failed', {})).resolves.toBeUndefined();
+      await expect(
+        publisher.publish('payout.failed', {}),
+      ).resolves.toBeUndefined();
     });
   });
 });

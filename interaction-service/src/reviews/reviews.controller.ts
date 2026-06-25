@@ -73,7 +73,13 @@ export class ReviewsController {
     @Body() dto: UpdateReviewDto,
     @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
-    return this.reviewsService.update(id, req.user.id, req.user.role, dto, files);
+    return this.reviewsService.update(
+      id,
+      req.user.id,
+      req.user.role,
+      dto,
+      files,
+    );
   }
 
   @Delete(':id')

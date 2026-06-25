@@ -95,8 +95,12 @@ describe('ArtistsService', () => {
     }).compile();
 
     service = module.get<ArtistsService>(ArtistsService);
-    artistsRepository = module.get(getRepositoryToken(ArtistProfile)) as jest.Mocked<Repository<ArtistProfile>>;
-    minioService = module.get<MinioService>(MinioService) as jest.Mocked<MinioService>;
+    artistsRepository = module.get(
+      getRepositoryToken(ArtistProfile),
+    ) as jest.Mocked<Repository<ArtistProfile>>;
+    minioService = module.get<MinioService>(
+      MinioService,
+    ) as jest.Mocked<MinioService>;
   });
 
   describe('create', () => {
@@ -132,11 +136,7 @@ describe('ArtistsService', () => {
         banner_url: 'banner-123.jpg',
       } as ArtistProfile);
 
-      const result = await service.create(
-        dto,
-        100,
-        { banner: [mockFile] },
-      );
+      const result = await service.create(dto, 100, { banner: [mockFile] });
 
       expect(artistsRepository.findOne).toHaveBeenCalledWith({
         where: { user_id: 100 },
@@ -289,7 +289,7 @@ describe('ArtistsService', () => {
       artistsRepository.findOne.mockResolvedValue(mockArtistProfile);
       artistsRepository.save.mockResolvedValue({
         ...mockArtistProfile,
-       bio: dto.bio || mockArtistProfile.bio,
+        bio: dto.bio || mockArtistProfile.bio,
       });
 
       const result = await service.update(100, dto, {});
@@ -391,7 +391,9 @@ describe('ArtistsService', () => {
           create: jest.fn().mockResolvedValue({ id: 'acct_123' }),
         },
         accountLinks: {
-          create: jest.fn().mockResolvedValue({ url: 'https://connect.stripe.test/onboard' }),
+          create: jest
+            .fn()
+            .mockResolvedValue({ url: 'https://connect.stripe.test/onboard' }),
         },
       };
 
@@ -427,7 +429,9 @@ describe('ArtistsService', () => {
           create: jest.fn(),
         },
         accountLinks: {
-          create: jest.fn().mockResolvedValue({ url: 'https://connect.stripe.test/retry' }),
+          create: jest
+            .fn()
+            .mockResolvedValue({ url: 'https://connect.stripe.test/retry' }),
         },
       };
 
@@ -443,7 +447,9 @@ describe('ArtistsService', () => {
     it('should throw NotFoundException when artist profile does not exist', async () => {
       artistsRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.createStripeAccount(999)).rejects.toThrow(NotFoundException);
+      await expect(service.createStripeAccount(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -503,7 +509,9 @@ describe('ArtistsService', () => {
     it('should throw NotFoundException when artist profile does not exist', async () => {
       artistsRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.syncStripeOnboardingStatus(999)).rejects.toThrow(NotFoundException);
+      await expect(service.syncStripeOnboardingStatus(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

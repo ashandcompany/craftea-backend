@@ -37,7 +37,8 @@ export class ArtistsService {
   private readonly stripeSecretConfigured: boolean;
 
   constructor(
-    @InjectRepository(ArtistProfile) private artistsRepo: Repository<ArtistProfile>,
+    @InjectRepository(ArtistProfile)
+    private artistsRepo: Repository<ArtistProfile>,
     @InjectRepository(ArtistVerificationDocument)
     private verificationDocsRepo: Repository<ArtistVerificationDocument>,
     private minioService: MinioService,
@@ -49,7 +50,9 @@ export class ArtistsService {
     this.frontendUrl =
       this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
 
-    let secretKey = this.configService.get<string>('STRIPE_SECRET_KEY', '').trim();
+    let secretKey = this.configService
+      .get<string>('STRIPE_SECRET_KEY', '')
+      .trim();
     if (!secretKey) {
       const secretKeyFile = this.configService.get<string>(
         'STRIPE_SECRET_KEY_FILE',
@@ -84,7 +87,7 @@ export class ArtistsService {
 
       if (
         lowered.includes('review and acknowledge your responsibilities') ||
-        lowered.includes('you\'ll be responsible for refunds') ||
+        lowered.includes("you'll be responsible for refunds") ||
         lowered.includes('chargebacks')
       ) {
         throw new BadRequestException(
@@ -98,7 +101,9 @@ export class ArtistsService {
     throw error;
   }
 
-  private async buildStripeOnboardingLink(stripeAccountId: string): Promise<string> {
+  private async buildStripeOnboardingLink(
+    stripeAccountId: string,
+  ): Promise<string> {
     const accountLink = await this.stripe.accountLinks.create({
       account: stripeAccountId,
       refresh_url: `${this.frontendUrl}/artist/stripe/refresh`,
@@ -112,27 +117,46 @@ export class ArtistsService {
   private async fetchUser(userId: number): Promise<UserIdentity | null> {
     if (!userId) return null;
     try {
-      const res = await fetch(`${this.userServiceUrl}/api/users/public/${userId}`);
+      const res = await fetch(
+        `${this.userServiceUrl}/api/users/public/${userId}`,
+      );
       if (!res.ok) return null;
       const user = (await res.json()) as any;
       if (!user?.id) return null;
-      return { id: user.id, firstname: user.firstname, lastname: user.lastname };
+      return {
+        id: user.id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+      };
     } catch {
       return null;
     }
   }
 
-  private async fetchUserWithEmail(userId: number): Promise<UserWithEmail | null> {
+  private async fetchUserWithEmail(
+    userId: number,
+  ): Promise<UserWithEmail | null> {
     if (!userId) return null;
     try {
-      const token = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
-      const res = await fetch(`${this.userServiceUrl}/api/users/internal/${userId}`, {
-        headers: { 'x-service-token': token },
-      });
+      const token = this.configService.get<string>(
+        'INTERNAL_SERVICE_TOKEN',
+        '',
+      );
+      const res = await fetch(
+        `${this.userServiceUrl}/api/users/internal/${userId}`,
+        {
+          headers: { 'x-service-token': token },
+        },
+      );
       if (!res.ok) return null;
       const user = (await res.json()) as any;
       if (!user?.id || !user?.email) return null;
-      return { id: user.id, email: user.email, firstname: user.firstname, lastname: user.lastname };
+      return {
+        id: user.id,
+        email: user.email,
+        firstname: user.firstname,
+        lastname: user.lastname,
+      };
     } catch {
       return null;
     }
@@ -143,7 +167,9 @@ export class ArtistsService {
     userId: number,
     files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
-    const exists = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const exists = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (exists) throw new ConflictException('Profil artiste déjà existant');
 
     const banner_url = files.banner?.[0]
@@ -188,7 +214,9 @@ export class ArtistsService {
       relations: ['shops'],
     });
     // Fetch all users in parallel instead of serially
-    const users = await Promise.all(profiles.map((p) => this.fetchUser(p.user_id)));
+    const users = await Promise.all(
+      profiles.map((p) => this.fetchUser(p.user_id)),
+    );
     return profiles.map((p, i) => ({ ...p, user: users[i] }));
   }
 
@@ -197,18 +225,22 @@ export class ArtistsService {
     dto: UpdateArtistDto,
     files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new NotFoundException('Profil artiste introuvable');
 
     if (dto.bio !== undefined) profile.bio = dto.bio;
     if (dto.social_links !== undefined) profile.social_links = dto.social_links;
 
     if (files.banner?.[0]) {
-      if (profile.banner_url) await this.minioService.deleteFile(profile.banner_url);
+      if (profile.banner_url)
+        await this.minioService.deleteFile(profile.banner_url);
       profile.banner_url = await this.minioService.uploadFile(files.banner[0]);
     }
     if (files.logo?.[0]) {
-      if (profile.logo_url) await this.minioService.deleteFile(profile.logo_url);
+      if (profile.logo_url)
+        await this.minioService.deleteFile(profile.logo_url);
       profile.logo_url = await this.minioService.uploadFile(files.logo[0]);
     }
 
@@ -218,7 +250,9 @@ export class ArtistsService {
   async createStripeAccount(userId: number) {
     this.assertStripeConfigured();
 
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new NotFoundException('Profil artiste introuvable');
 
     try {
@@ -253,7 +287,9 @@ export class ArtistsService {
         throw new NotFoundException('Compte Stripe artiste introuvable');
       }
 
-      const url = await this.buildStripeOnboardingLink(profile.stripe_account_id);
+      const url = await this.buildStripeOnboardingLink(
+        profile.stripe_account_id,
+      );
 
       // Publish artist.kyc-invited event (best-effort)
       const user = await this.fetchUserWithEmail(profile.user_id);
@@ -274,7 +310,9 @@ export class ArtistsService {
   async syncStripeOnboardingStatus(userId: number) {
     this.assertStripeConfigured();
 
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new NotFoundException('Profil artiste introuvable');
 
     if (!profile.stripe_account_id) {
@@ -333,7 +371,9 @@ export class ArtistsService {
         await this.minioService.deleteFile(doc.file_url).catch(() => {});
       }
       if (oldDocs.length > 0) {
-        await this.verificationDocsRepo.delete({ artist_profile_id: profile.id });
+        await this.verificationDocsRepo.delete({
+          artist_profile_id: profile.id,
+        });
       }
     } else {
       profile.validation_status = 'approved';
@@ -344,8 +384,13 @@ export class ArtistsService {
 
   async creditWallet(artistId: number, amountCents: number) {
     // Atomic increment — no read-modify-write race condition
-    const result = await this.artistsRepo.increment({ id: artistId }, 'wallet_balance', amountCents);
-    if (!result.affected) throw new NotFoundException('Profil artiste introuvable');
+    const result = await this.artistsRepo.increment(
+      { id: artistId },
+      'wallet_balance',
+      amountCents,
+    );
+    if (!result.affected)
+      throw new NotFoundException('Profil artiste introuvable');
     const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
     return {
       artistId,
@@ -360,11 +405,16 @@ export class ArtistsService {
       .createQueryBuilder()
       .update(ArtistProfile)
       .set({ wallet_balance: () => `wallet_balance - ${amountCents}` })
-      .where('id = :id AND wallet_balance >= :amount', { id: artistId, amount: amountCents })
+      .where('id = :id AND wallet_balance >= :amount', {
+        id: artistId,
+        amount: amountCents,
+      })
       .execute();
 
     if (!result.affected) {
-      const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
+      const profile = await this.artistsRepo.findOne({
+        where: { id: artistId },
+      });
       if (!profile) throw new NotFoundException('Profil artiste introuvable');
       throw new ConflictException('Solde insuffisant');
     }
@@ -379,8 +429,13 @@ export class ArtistsService {
 
   async addPendingBalance(artistId: number, amountCents: number) {
     // Atomic increment
-    const result = await this.artistsRepo.increment({ id: artistId }, 'pending_balance', amountCents);
-    if (!result.affected) throw new NotFoundException('Profil artiste introuvable');
+    const result = await this.artistsRepo.increment(
+      { id: artistId },
+      'pending_balance',
+      amountCents,
+    );
+    if (!result.affected)
+      throw new NotFoundException('Profil artiste introuvable');
     const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
     return {
       artistId,
@@ -394,11 +449,14 @@ export class ArtistsService {
     const result = await this.artistsRepo
       .createQueryBuilder()
       .update(ArtistProfile)
-      .set({ pending_balance: () => `GREATEST(0, pending_balance - ${amountCents})` })
+      .set({
+        pending_balance: () => `GREATEST(0, pending_balance - ${amountCents})`,
+      })
       .where('id = :id', { id: artistId })
       .execute();
 
-    if (!result.affected) throw new NotFoundException('Profil artiste introuvable');
+    if (!result.affected)
+      throw new NotFoundException('Profil artiste introuvable');
     const profile = await this.artistsRepo.findOne({ where: { id: artistId } });
     return {
       artistId,
@@ -445,7 +503,8 @@ export class ArtistsService {
       where: { stripe_account_id: stripeAccountId },
     });
     if (!profile) return { updated: false, reason: 'not_found' };
-    if (!profile.stripe_onboarded) return { updated: false, reason: 'already_not_ready' };
+    if (!profile.stripe_onboarded)
+      return { updated: false, reason: 'already_not_ready' };
 
     profile.stripe_onboarded = false;
     await this.artistsRepo.save(profile);
@@ -455,13 +514,18 @@ export class ArtistsService {
   async adminGetAll() {
     const profiles = await this.artistsRepo.find({ relations: ['shops'] });
     // Fetch all users in parallel instead of serially
-    const users = await Promise.all(profiles.map((p) => this.fetchUser(p.user_id)));
+    const users = await Promise.all(
+      profiles.map((p) => this.fetchUser(p.user_id)),
+    );
     return profiles.map((p, i) => ({ ...p, user: users[i] }));
   }
 
-  async findByStripeAccountId(
-    stripeAccountId: string,
-  ): Promise<{ id: number; user_id: number; email: string; name: string } | null> {
+  async findByStripeAccountId(stripeAccountId: string): Promise<{
+    id: number;
+    user_id: number;
+    email: string;
+    name: string;
+  } | null> {
     const profile = await this.artistsRepo.findOne({
       where: { stripe_account_id: stripeAccountId },
     });
@@ -486,7 +550,9 @@ export class ArtistsService {
     description?: string,
     namesJson?: string,
   ) {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new NotFoundException('Profil artiste introuvable');
     if (profile.validation_status === 'approved') {
       throw new ConflictException('Votre compte est déjà validé');
@@ -508,7 +574,11 @@ export class ArtistsService {
 
     // Upload and save documents — sequential to avoid MinIO connection exhaustion
     let namesArr: string[] = [];
-    try { namesArr = namesJson ? (JSON.parse(namesJson) as string[]) : []; } catch { namesArr = []; }
+    try {
+      namesArr = namesJson ? (JSON.parse(namesJson) as string[]) : [];
+    } catch {
+      namesArr = [];
+    }
     const savedDocs: ArtistVerificationDocument[] = [];
     try {
       for (let i = 0; i < files.length; i++) {
@@ -544,7 +614,7 @@ export class ArtistsService {
         );
       }
       throw new InternalServerErrorException(
-        'Une erreur est survenue lors de l\'upload des fichiers.',
+        "Une erreur est survenue lors de l'upload des fichiers.",
       );
     }
 
@@ -562,11 +632,16 @@ export class ArtistsService {
       });
     }
 
-    return { validation_status: profile.validation_status, documents: savedDocs };
+    return {
+      validation_status: profile.validation_status,
+      documents: savedDocs,
+    };
   }
 
   async getMyVerification(userId: number) {
-    const profile = await this.artistsRepo.findOne({ where: { user_id: userId } });
+    const profile = await this.artistsRepo.findOne({
+      where: { user_id: userId },
+    });
     if (!profile) throw new NotFoundException('Profil artiste introuvable');
 
     const documents = await this.verificationDocsRepo.find({

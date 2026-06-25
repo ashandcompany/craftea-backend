@@ -20,10 +20,7 @@ export class ImagesController {
   ) {}
 
   @Get(':objectName')
-  async serve(
-    @Param('objectName') objectName: string,
-    @Res() res: Response,
-  ) {
+  async serve(@Param('objectName') objectName: string, @Res() res: Response) {
     const cacheKey = `img:${objectName}`;
 
     // 1. Try Redis cache
@@ -38,7 +35,9 @@ export class ImagesController {
     // 2. Fetch from MinIO
     try {
       const stat = await this.minio.statObject(objectName);
-      const contentType = (stat.metaData as Record<string, string>)['content-type'] || 'application/octet-stream';
+      const contentType =
+        (stat.metaData as Record<string, string>)['content-type'] ||
+        'application/octet-stream';
 
       const stream = await this.minio.getObjectStream(objectName);
       const chunks: Buffer[] = [];
@@ -52,9 +51,11 @@ export class ImagesController {
       const buffer = Buffer.concat(chunks);
 
       // 3. Store in Redis (fire-and-forget)
-      this.redis.setImageCache(cacheKey, buffer, contentType).catch((err) =>
-        this.logger.error(`setImageCache error: ${err.message}`),
-      );
+      this.redis
+        .setImageCache(cacheKey, buffer, contentType)
+        .catch((err) =>
+          this.logger.error(`setImageCache error: ${err.message}`),
+        );
 
       // 4. Respond
       res.set('Content-Type', contentType);

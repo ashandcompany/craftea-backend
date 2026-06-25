@@ -101,8 +101,15 @@ describe('ProductsService', () => {
       productsRepo.create.mockReturnValue(created);
       productsRepo.save.mockResolvedValue(created);
       minioService.uploadFile.mockResolvedValue('abc-123.jpg');
-      tagsRepo.find.mockResolvedValue([{ id: 1, name: 'Bio' }, { id: 2, name: 'Éco' }]);
-      productsRepo.findOne.mockResolvedValue({ ...created, images: [{ id: 1, image_url: 'abc-123.jpg', position: 0 }], tags: [{ id: 1 }, { id: 2 }] });
+      tagsRepo.find.mockResolvedValue([
+        { id: 1, name: 'Bio' },
+        { id: 2, name: 'Éco' },
+      ]);
+      productsRepo.findOne.mockResolvedValue({
+        ...created,
+        images: [{ id: 1, image_url: 'abc-123.jpg', position: 0 }],
+        tags: [{ id: 1 }, { id: 2 }],
+      });
 
       const result = await service.create(dto, files);
 
@@ -153,7 +160,9 @@ describe('ProductsService', () => {
       const result = await service.findAll({});
 
       expect(result).toEqual({ total: 1, page: 1, limit: 20, data: rows });
-      expect(qb.andWhere).toHaveBeenCalledWith('product.is_active = :active', { active: true });
+      expect(qb.andWhere).toHaveBeenCalledWith('product.is_active = :active', {
+        active: true,
+      });
     });
 
     it('should apply category_id filter', async () => {
@@ -170,7 +179,9 @@ describe('ProductsService', () => {
 
       await service.findAll({ category_id: 5 });
 
-      expect(qb.andWhere).toHaveBeenCalledWith('product.category_id = :catId', { catId: 5 });
+      expect(qb.andWhere).toHaveBeenCalledWith('product.category_id = :catId', {
+        catId: 5,
+      });
     });
 
     it('should apply search filter with ILIKE', async () => {
@@ -187,7 +198,9 @@ describe('ProductsService', () => {
 
       await service.findAll({ search: 'vase' });
 
-      expect(qb.andWhere).toHaveBeenCalledWith('product.title ILIKE :search', { search: '%vase%' });
+      expect(qb.andWhere).toHaveBeenCalledWith('product.title ILIKE :search', {
+        search: '%vase%',
+      });
     });
 
     it('should skip is_active filter when include_inactive is true', async () => {
@@ -251,7 +264,9 @@ describe('ProductsService', () => {
     it('should throw NotFoundException when product not found', async () => {
       productsRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.toggleActive(999)).rejects.toThrow(NotFoundException);
+      await expect(service.toggleActive(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -273,7 +288,9 @@ describe('ProductsService', () => {
     it('should throw NotFoundException when product not found', async () => {
       productsRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.updateStock(999, 10)).rejects.toThrow(NotFoundException);
+      await expect(service.updateStock(999, 10)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -295,13 +312,17 @@ describe('ProductsService', () => {
       const product = { ...mockProduct, stock: 2 };
       productsRepo.findOne.mockResolvedValue(product);
 
-      await expect(service.decrementStock(1, 5)).rejects.toThrow(BadRequestException);
+      await expect(service.decrementStock(1, 5)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw NotFoundException when product not found', async () => {
       productsRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.decrementStock(999, 1)).rejects.toThrow(NotFoundException);
+      await expect(service.decrementStock(999, 1)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -319,11 +340,15 @@ describe('ProductsService', () => {
 
       const result = await service.remove(1);
 
-      expect(minioService.deleteFile).toHaveBeenCalledWith('http://minio/bucket/abc.jpg');
+      expect(minioService.deleteFile).toHaveBeenCalledWith(
+        'http://minio/bucket/abc.jpg',
+      );
       expect(redis.invalidateCache).toHaveBeenCalledWith('img:abc.jpg');
       expect(imagesRepo.delete).toHaveBeenCalledWith({ product_id: 1 });
       expect(productsRepo.delete).toHaveBeenCalledWith(1);
-      expect(rabbitmq.publish).toHaveBeenCalledWith('product.deleted', { id: 1 });
+      expect(rabbitmq.publish).toHaveBeenCalledWith('product.deleted', {
+        id: 1,
+      });
       expect(result).toEqual({ message: 'Produit supprimé' });
     });
 

@@ -8,7 +8,14 @@ import { ShopShippingMethod } from './entities/shop-shipping-method.entity.js';
 import { ArtistProfile } from '../artists/entities/artist-profile.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Shop, ShopShippingProfile, ShopShippingMethod, ArtistProfile])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Shop,
+      ShopShippingProfile,
+      ShopShippingMethod,
+      ArtistProfile,
+    ]),
+  ],
   controllers: [ShopsController],
   providers: [ShopsService],
 })

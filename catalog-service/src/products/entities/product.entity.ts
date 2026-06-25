@@ -77,7 +77,10 @@ export class Product {
   images: ProductImage[];
 
   @Column({ type: 'jsonb', nullable: true })
-  variants: Array<{ name: string; options: Array<{ label: string; stock: number; price?: number | null }> }> | null;
+  variants: Array<{
+    name: string;
+    options: Array<{ label: string; stock: number; price?: number | null }>;
+  }> | null;
 
   @ManyToMany(() => Tag, (tag) => tag.products, { cascade: true })
   @JoinTable({

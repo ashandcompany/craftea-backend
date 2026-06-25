@@ -10,7 +10,9 @@ export class StripeService {
   private readonly webhookSecret: string;
 
   constructor(private readonly configService: ConfigService) {
-    let secretKey = this.configService.get<string>('STRIPE_SECRET_KEY', '').trim();
+    let secretKey = this.configService
+      .get<string>('STRIPE_SECRET_KEY', '')
+      .trim();
     if (!secretKey) {
       const secretKeyFile = this.configService.get<string>(
         'STRIPE_SECRET_KEY_FILE',
@@ -27,18 +29,25 @@ export class StripeService {
       .trim();
   }
 
-  constructWebhookEvent(rawBody: Buffer | string, signature: string): Stripe.Event {
+  constructWebhookEvent(
+    rawBody: Buffer | string,
+    signature: string,
+  ): Stripe.Event {
     if (!this.webhookSecret) {
       throw new Error('STRIPE_WEBHOOK_SECRET manquant');
     }
 
     if (!this.webhookSecret.startsWith('whsec_')) {
       throw new Error(
-        'STRIPE_WEBHOOK_SECRET invalide: utilisez le secret endpoint webhook Stripe (whsec_...), pas une clé API sk_...'
+        'STRIPE_WEBHOOK_SECRET invalide: utilisez le secret endpoint webhook Stripe (whsec_...), pas une clé API sk_...',
       );
     }
 
-    return this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
+    return this.stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      this.webhookSecret,
+    );
   }
 
   /**
@@ -55,11 +64,13 @@ export class StripeService {
     idempotencyKey: string;
     metadata?: Record<string, string>;
     applicationFeeAmount?: number; // platform commission in cents
-    transferDestination?: string;  // connected account ID (acct_...)
+    transferDestination?: string; // connected account ID (acct_...)
   }): Promise<Stripe.PaymentIntent> {
     this.logger.log(
       `Creating Stripe PaymentIntent: ${params.amount} ${params.currency} (key: ${params.idempotencyKey})` +
-      (params.transferDestination ? ` → dest: ${params.transferDestination}` : ''),
+        (params.transferDestination
+          ? ` → dest: ${params.transferDestination}`
+          : ''),
     );
 
     const createParams: Stripe.PaymentIntentCreateParams = {
@@ -77,14 +88,15 @@ export class StripeService {
       };
     }
 
-    return this.stripe.paymentIntents.create(
-      createParams,
-      { idempotencyKey: params.idempotencyKey },
-    );
+    return this.stripe.paymentIntents.create(createParams, {
+      idempotencyKey: params.idempotencyKey,
+    });
   }
 
   /** Retrieve an existing PaymentIntent to check its status. */
-  async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+  async retrievePaymentIntent(
+    paymentIntentId: string,
+  ): Promise<Stripe.PaymentIntent> {
     return this.stripe.paymentIntents.retrieve(paymentIntentId);
   }
 
@@ -101,7 +113,8 @@ export class StripeService {
       {
         payment_intent: params.paymentIntentId,
         amount: params.amount,
-        reason: (params.reason as Stripe.RefundCreateParams['reason']) ?? undefined,
+        reason:
+          (params.reason as Stripe.RefundCreateParams['reason']) ?? undefined,
       },
       { idempotencyKey: params.idempotencyKey },
     );
@@ -159,8 +172,10 @@ export class StripeService {
       { stripeAccount: stripeAccountId },
     );
 
-    const available = balance.available.find((b) => b.currency === 'eur')?.amount ?? 0;
-    const pending = balance.pending.find((b) => b.currency === 'eur')?.amount ?? 0;
+    const available =
+      balance.available.find((b) => b.currency === 'eur')?.amount ?? 0;
+    const pending =
+      balance.pending.find((b) => b.currency === 'eur')?.amount ?? 0;
 
     return { available, pending };
   }

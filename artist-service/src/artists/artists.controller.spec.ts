@@ -102,11 +102,9 @@ describe('ArtistsController', () => {
       service.create.mockResolvedValue(mockArtistResponse);
 
       const mockRequest = { user: { id: 100 } };
-      const result = await controller.create(
-        mockRequest,
-        dto,
-        { banner: [mockFile] },
-      );
+      const result = await controller.create(mockRequest, dto, {
+        banner: [mockFile],
+      });
 
       expect(service.create).toHaveBeenCalledWith(dto, 100, {
         banner: [mockFile],
@@ -135,7 +133,10 @@ describe('ArtistsController', () => {
         bio: 'Updated bio',
       };
 
-      const updatedResponse = { ...mockArtistResponse, bio: dto.bio } as ArtistProfile;
+      const updatedResponse = {
+        ...mockArtistResponse,
+        bio: dto.bio,
+      } as ArtistProfile;
       service.update.mockResolvedValue(updatedResponse);
 
       const mockRequest = { user: { id: 100 } };
@@ -170,11 +171,9 @@ describe('ArtistsController', () => {
       service.update.mockResolvedValue(updatedResponse);
 
       const mockRequest = { user: { id: 100 } };
-      const result = await controller.update(
-        mockRequest,
-        dto,
-        { banner: [mockFile] },
-      );
+      const result = await controller.update(mockRequest, dto, {
+        banner: [mockFile],
+      });
 
       expect(service.update).toHaveBeenCalledWith(100, dto, {
         banner: [mockFile],

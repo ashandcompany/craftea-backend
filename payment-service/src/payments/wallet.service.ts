@@ -37,8 +37,14 @@ export class WalletService {
     @InjectRepository(WalletTransaction)
     private readonly walletTxRepo: Repository<WalletTransaction>,
   ) {
-    this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
-    this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    this.artistUrl = this.configService.get<string>(
+      'ARTIST_URL',
+      'http://artist-service:3002',
+    );
+    this.internalServiceToken = this.configService.get<string>(
+      'INTERNAL_SERVICE_TOKEN',
+      '',
+    );
   }
 
   private async getArtistProfileByAuth(authHeader: string | undefined) {
@@ -47,9 +53,12 @@ export class WalletService {
     }
 
     const { data } = await firstValueFrom(
-      this.httpService.get<ArtistProfileSnapshot>(`${this.artistUrl}/api/artists/profile/me`, {
-        headers: { Authorization: authHeader },
-      }),
+      this.httpService.get<ArtistProfileSnapshot>(
+        `${this.artistUrl}/api/artists/profile/me`,
+        {
+          headers: { Authorization: authHeader },
+        },
+      ),
     );
 
     if (!data?.id) {
@@ -75,7 +84,10 @@ export class WalletService {
     await firstValueFrom(
       this.httpService.patch(
         `${this.artistUrl}/api/artists/internal/${artistId}/wallet/add-pending`,
-        { amount_cents: amountCents, description: `Commande #${orderId} confirmée` },
+        {
+          amount_cents: amountCents,
+          description: `Commande #${orderId} confirmée`,
+        },
         { headers: { 'x-service-token': this.internalServiceToken } },
       ),
     );
@@ -108,7 +120,10 @@ export class WalletService {
     await firstValueFrom(
       this.httpService.patch(
         `${this.artistUrl}/api/artists/internal/${artistId}/wallet/credit`,
-        { amount_cents: amountCents, description: `Commande #${orderId} validée` },
+        {
+          amount_cents: amountCents,
+          description: `Commande #${orderId} validée`,
+        },
         { headers: { 'x-service-token': this.internalServiceToken } },
       ),
     );
@@ -183,7 +198,9 @@ export class WalletService {
         stripeAvailable = stripeBalance.available;
         stripePending = stripeBalance.pending;
       } catch (error) {
-        this.logger.warn(`Could not fetch Stripe balance for artist ${artist.id}: ${error}`);
+        this.logger.warn(
+          `Could not fetch Stripe balance for artist ${artist.id}: ${error}`,
+        );
       }
     }
 
@@ -226,7 +243,11 @@ export class WalletService {
     });
   }
 
-  async requestPayout(userId: number, authHeader: string | undefined, amountCents: number) {
+  async requestPayout(
+    userId: number,
+    authHeader: string | undefined,
+    amountCents: number,
+  ) {
     const artist = await this.getArtistProfileByAuth(authHeader);
     if (!artist.stripe_onboarded || !artist.stripe_account_id) {
       throw new BadRequestException('Compte Stripe non configuré');
@@ -266,7 +287,10 @@ export class WalletService {
     await firstValueFrom(
       this.httpService.patch(
         `${this.artistUrl}/api/artists/internal/${artist.id}/wallet/debit`,
-        { amount_cents: amountCents, description: 'Retrait vers compte bancaire' },
+        {
+          amount_cents: amountCents,
+          description: 'Retrait vers compte bancaire',
+        },
         { headers: { 'x-service-token': this.internalServiceToken } },
       ),
     );
@@ -304,7 +328,9 @@ export class WalletService {
         { headers: { 'x-service-token': this.internalServiceToken } },
       ),
     );
-    this.logger.log(`Artist Stripe account ${stripeAccountId} marked not ready`);
+    this.logger.log(
+      `Artist Stripe account ${stripeAccountId} marked not ready`,
+    );
   }
 
   async handleTransferFailed(transfer: { id: string }) {
@@ -320,13 +346,19 @@ export class WalletService {
     });
 
     if (!tx) {
-      this.logger.warn(`Aucune transaction locale trouvée pour transfer.failed ${transfer.id}`);
+      this.logger.warn(
+        `Aucune transaction locale trouvée pour transfer.failed ${transfer.id}`,
+      );
       return { recovered: false, reason: 'not_found' };
     }
 
     // Idempotence webhook: rollback déjà traité.
     if (tx.status !== WalletTransactionStatus.PAID) {
-      return { recovered: false, reason: 'already_handled', transactionId: tx.id };
+      return {
+        recovered: false,
+        reason: 'already_handled',
+        transactionId: tx.id,
+      };
     }
 
     await firstValueFrom(
@@ -364,12 +396,18 @@ export class WalletService {
     });
 
     if (!tx) {
-      this.logger.warn(`Aucune transaction locale trouvée pour payout.failed ${payout.id}`);
+      this.logger.warn(
+        `Aucune transaction locale trouvée pour payout.failed ${payout.id}`,
+      );
       return { recovered: false, reason: 'not_found' };
     }
 
     if (tx.status !== WalletTransactionStatus.PAID) {
-      return { recovered: false, reason: 'already_handled', transactionId: tx.id };
+      return {
+        recovered: false,
+        reason: 'already_handled',
+        transactionId: tx.id,
+      };
     }
 
     // Restore the artist's wallet balance

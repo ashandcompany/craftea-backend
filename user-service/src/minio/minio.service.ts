@@ -41,16 +41,24 @@ export class MinioService implements OnModuleInit {
         ],
       };
       await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
-      this.logger.log(`Bucket "${this.bucket}" created with public read policy`);
+      this.logger.log(
+        `Bucket "${this.bucket}" created with public read policy`,
+      );
     }
   }
 
   async uploadFile(file: Express.Multer.File): Promise<string> {
     const ext = path.extname(file.originalname) || '.jpg';
     const objectName = `${uuidv4()}${ext}`;
-    await this.client.putObject(this.bucket, objectName, file.buffer, file.size, {
-      'Content-Type': file.mimetype,
-    });
+    await this.client.putObject(
+      this.bucket,
+      objectName,
+      file.buffer,
+      file.size,
+      {
+        'Content-Type': file.mimetype,
+      },
+    );
     return objectName;
   }
 

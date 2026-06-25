@@ -49,7 +49,12 @@ export class EmailService {
     if (this.smtpTransport) {
       try {
         this.logger.log(`Sending SMTP email to ${to}: ${subject}`);
-        await this.smtpTransport.sendMail({ from: this.from, to, subject, html });
+        await this.smtpTransport.sendMail({
+          from: this.from,
+          to,
+          subject,
+          html,
+        });
         this.logger.log(`SMTP email sent to ${to}`);
       } catch (err) {
         this.logger.error(

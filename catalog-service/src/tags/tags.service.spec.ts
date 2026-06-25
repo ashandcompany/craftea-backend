@@ -28,7 +28,10 @@ describe('TagsService', () => {
 
   describe('findAll', () => {
     it('should return all tags ordered by name', async () => {
-      const tags = [{ id: 1, name: 'Artisanal' }, { id: 2, name: 'Bio' }];
+      const tags = [
+        { id: 1, name: 'Artisanal' },
+        { id: 2, name: 'Bio' },
+      ];
       repo.find.mockResolvedValue(tags);
 
       const result = await service.findAll();

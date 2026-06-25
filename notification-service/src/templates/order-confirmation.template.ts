@@ -2,7 +2,12 @@ import { escapeHtml } from './escape.js';
 
 export interface OrderConfirmationParams {
   orderNumber: string;
-  items: { name: string; image_url?: string | null; qty: number; unitPrice: number }[];
+  items: {
+    name: string;
+    image_url?: string | null;
+    qty: number;
+    unitPrice: number;
+  }[];
   shippingTotal?: number;
   total: number;
   commissionAmount?: number;
@@ -15,7 +20,7 @@ export function orderConfirmationTemplate(p: OrderConfirmationParams): string {
       const imageHtml = item.image_url
         ? `<img src="${item.image_url}" alt="${escapeHtml(item.name)}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 12px;" />`
         : '';
-      
+
       return `
        <tr>
         <td style="padding: 12px 16px; border-bottom: 1px solid var(--stone-200); display: flex; align-items: center;">

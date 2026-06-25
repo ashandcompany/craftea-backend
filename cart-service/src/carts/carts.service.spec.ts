@@ -43,7 +43,9 @@ describe('CartsService', () => {
 
       const result = await service.getOrCreateCart(10);
 
-      expect(cartsRepo.findOne).toHaveBeenCalledWith({ where: { user_id: 10 } });
+      expect(cartsRepo.findOne).toHaveBeenCalledWith({
+        where: { user_id: 10 },
+      });
       expect(result).toBe(cart);
     });
 
@@ -76,11 +78,16 @@ describe('CartsService', () => {
   describe('addItem', () => {
     it('should add a new item to the cart', async () => {
       const cart = { id: 1, user_id: 10, items: [] } as Cart;
-      const newItem = { id: 1, cart_id: 1, product_id: 42, quantity: 2 } as CartItem;
+      const newItem = {
+        id: 1,
+        cart_id: 1,
+        product_id: 42,
+        quantity: 2,
+      } as CartItem;
       const updatedCart = { ...cart, items: [newItem] } as Cart;
 
       cartsRepo.findOne
-        .mockResolvedValueOnce(cart)    // getOrCreateCart
+        .mockResolvedValueOnce(cart) // getOrCreateCart
         .mockResolvedValueOnce(updatedCart); // reload
       itemsRepo.create.mockReturnValue(newItem);
       itemsRepo.save.mockResolvedValue(newItem);
@@ -97,9 +104,17 @@ describe('CartsService', () => {
     });
 
     it('should increment quantity when product already in cart', async () => {
-      const existingItem = { id: 5, cart_id: 1, product_id: 42, quantity: 1 } as CartItem;
+      const existingItem = {
+        id: 5,
+        cart_id: 1,
+        product_id: 42,
+        quantity: 1,
+      } as CartItem;
       const cart = { id: 1, user_id: 10, items: [existingItem] } as Cart;
-      const updatedCart = { ...cart, items: [{ ...existingItem, quantity: 3 }] } as Cart;
+      const updatedCart = {
+        ...cart,
+        items: [{ ...existingItem, quantity: 3 }],
+      } as Cart;
 
       cartsRepo.findOne
         .mockResolvedValueOnce(cart)
@@ -118,9 +133,17 @@ describe('CartsService', () => {
 
   describe('updateItem', () => {
     it('should update item quantity', async () => {
-      const item = { id: 5, cart_id: 1, product_id: 42, quantity: 1 } as CartItem;
+      const item = {
+        id: 5,
+        cart_id: 1,
+        product_id: 42,
+        quantity: 1,
+      } as CartItem;
       const cart = { id: 1, user_id: 10, items: [item] } as Cart;
-      const updatedCart = { ...cart, items: [{ ...item, quantity: 5 }] } as Cart;
+      const updatedCart = {
+        ...cart,
+        items: [{ ...item, quantity: 5 }],
+      } as Cart;
 
       cartsRepo.findOne
         .mockResolvedValueOnce(cart)
@@ -148,7 +171,12 @@ describe('CartsService', () => {
 
   describe('removeItem', () => {
     it('should remove item from cart', async () => {
-      const item = { id: 5, cart_id: 1, product_id: 42, quantity: 2 } as CartItem;
+      const item = {
+        id: 5,
+        cart_id: 1,
+        product_id: 42,
+        quantity: 2,
+      } as CartItem;
       const cart = { id: 1, user_id: 10, items: [item] } as Cart;
       const emptyCart = { id: 1, user_id: 10, items: [] } as Cart;
 
@@ -167,7 +195,9 @@ describe('CartsService', () => {
       const cart = { id: 1, user_id: 10, items: [] } as Cart;
       cartsRepo.findOne.mockResolvedValue(cart);
 
-      await expect(service.removeItem(10, 99)).rejects.toThrow(NotFoundException);
+      await expect(service.removeItem(10, 99)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

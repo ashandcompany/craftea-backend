@@ -17,7 +17,9 @@ export class CategoriesService {
     const cached = await this.redis.getCache('categories:list');
     if (cached) return cached;
 
-    const categories = await this.categoriesRepo.find({ order: { name: 'ASC' } });
+    const categories = await this.categoriesRepo.find({
+      order: { name: 'ASC' },
+    });
     await this.redis.setCache('categories:list', categories);
     return categories;
   }
@@ -58,7 +60,8 @@ export class CategoriesService {
 
   async remove(id: number) {
     const result = await this.categoriesRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException('Catégorie introuvable');
+    if (result.affected === 0)
+      throw new NotFoundException('Catégorie introuvable');
     await this.redis.invalidateCache('categories:*');
     return { message: 'Catégorie supprimée' };
   }

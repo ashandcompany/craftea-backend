@@ -7,7 +7,7 @@ import { PaymentsService } from './payments.service';
 describe('PaymentsEventsController', () => {
   let controller: PaymentsEventsController;
   let paymentsService: jest.Mocked<PaymentsService>;
-  let configService: jest.Mocked<ConfigService>;
+  let _configService: jest.Mocked<ConfigService>;
 
   const VALID_TOKEN = 'secret-service-token';
 
@@ -38,17 +38,24 @@ describe('PaymentsEventsController', () => {
     }).compile();
 
     controller = module.get<PaymentsEventsController>(PaymentsEventsController);
-    paymentsService = module.get(PaymentsService) as jest.Mocked<PaymentsService>;
-    configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
+    paymentsService = module.get(
+      PaymentsService,
+    ) as jest.Mocked<PaymentsService>;
+    _configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
   });
 
   describe('handleOrderCompleted', () => {
     it('should delegate to paymentsService.handleOrderCompleted with valid token', async () => {
       paymentsService.handleOrderCompleted.mockResolvedValue({ skipped: true });
 
-      const result = await controller.handleOrderCompleted(orderDto, VALID_TOKEN);
+      const result = await controller.handleOrderCompleted(
+        orderDto,
+        VALID_TOKEN,
+      );
 
-      expect(paymentsService.handleOrderCompleted).toHaveBeenCalledWith(orderDto);
+      expect(paymentsService.handleOrderCompleted).toHaveBeenCalledWith(
+        orderDto,
+      );
       expect(result).toEqual({ skipped: true });
     });
 
@@ -71,9 +78,14 @@ describe('PaymentsEventsController', () => {
     it('should delegate to paymentsService.handleOrderConfirmed with valid token', async () => {
       paymentsService.handleOrderConfirmed.mockResolvedValue({ success: true });
 
-      const result = await controller.handleOrderConfirmed(orderDto, VALID_TOKEN);
+      const result = await controller.handleOrderConfirmed(
+        orderDto,
+        VALID_TOKEN,
+      );
 
-      expect(paymentsService.handleOrderConfirmed).toHaveBeenCalledWith(orderDto);
+      expect(paymentsService.handleOrderConfirmed).toHaveBeenCalledWith(
+        orderDto,
+      );
       expect(result).toEqual({ success: true });
     });
 
@@ -88,16 +100,21 @@ describe('PaymentsEventsController', () => {
     it('should delegate to paymentsService.handleOrderCancelled with valid token', async () => {
       paymentsService.handleOrderCancelled.mockResolvedValue({ success: true });
 
-      const result = await controller.handleOrderCancelled(orderDto, VALID_TOKEN);
+      const result = await controller.handleOrderCancelled(
+        orderDto,
+        VALID_TOKEN,
+      );
 
-      expect(paymentsService.handleOrderCancelled).toHaveBeenCalledWith(orderDto);
+      expect(paymentsService.handleOrderCancelled).toHaveBeenCalledWith(
+        orderDto,
+      );
       expect(result).toEqual({ success: true });
     });
 
     it('should throw ForbiddenException when token is invalid', () => {
-      expect(() =>
-        controller.handleOrderCancelled(orderDto, ''),
-      ).toThrow(ForbiddenException);
+      expect(() => controller.handleOrderCancelled(orderDto, '')).toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

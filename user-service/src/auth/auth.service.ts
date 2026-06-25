@@ -73,7 +73,9 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const exists = await this.usersRepo.findOne({ where: { email: dto.email } });
+    const exists = await this.usersRepo.findOne({
+      where: { email: dto.email },
+    });
     if (exists) throw new ConflictException('Email déjà utilisé');
 
     const hash = await bcrypt.hash(dto.password, 12);
@@ -87,7 +89,12 @@ export class AuthService {
     await this.usersRepo.save(user);
 
     await this.logsRepo.save(
-      this.logsRepo.create({ user_id: user.id, action: 'register', entity: 'user', entity_id: user.id }),
+      this.logsRepo.create({
+        user_id: user.id,
+        action: 'register',
+        entity: 'user',
+        entity_id: user.id,
+      }),
     );
 
     return {
@@ -111,7 +118,12 @@ export class AuthService {
     if (!match) throw new UnauthorizedException('Identifiants invalides');
 
     await this.logsRepo.save(
-      this.logsRepo.create({ user_id: user.id, action: 'login', entity: 'user', entity_id: user.id }),
+      this.logsRepo.create({
+        user_id: user.id,
+        action: 'login',
+        entity: 'user',
+        entity_id: user.id,
+      }),
     );
 
     return {
@@ -127,7 +139,8 @@ export class AuthService {
         secret: this.configService.get('JWT_REFRESH_SECRET'),
       });
       const user = await this.usersRepo.findOne({ where: { id: decoded.id } });
-      if (!user || !user.is_active) throw new UnauthorizedException('Utilisateur invalide');
+      if (!user || !user.is_active)
+        throw new UnauthorizedException('Utilisateur invalide');
 
       return { accessToken: this.generateAccessToken(user) };
     } catch {
@@ -153,17 +166,29 @@ export class AuthService {
       reset_password_expires: expires,
     });
 
-    const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
+    const appUrl = this.configService.get<string>(
+      'APP_URL',
+      'http://localhost:3000',
+    );
     const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
     const html = resetPasswordTemplate({ resetUrl });
 
     // In development (no real Resend key), log the URL so it can be tested directly
-    const resendKey = this.configService.get<string>('RESEND_API_KEY', 'placeholder');
+    const resendKey = this.configService.get<string>(
+      'RESEND_API_KEY',
+      'placeholder',
+    );
     if (!resendKey || resendKey === 'placeholder') {
-      this.logger.log(`[DEV] Lien de réinitialisation pour ${email} :\n  ${resetUrl}`);
+      this.logger.log(
+        `[DEV] Lien de réinitialisation pour ${email} :\n  ${resetUrl}`,
+      );
     }
 
-    await this.emailService.send(email, 'Réinitialisation de votre mot de passe Craftea', html);
+    await this.emailService.send(
+      email,
+      'Réinitialisation de votre mot de passe Craftea',
+      html,
+    );
   }
 
   async resetPassword(rawToken: string, newPassword: string): Promise<void> {
@@ -176,8 +201,14 @@ export class AuthService {
       .where('user.reset_password_token = :token', { token: hashedToken })
       .getOne();
 
-    if (!user || !user.reset_password_expires || user.reset_password_expires < new Date()) {
-      throw new BadRequestException('Lien de réinitialisation invalide ou expiré');
+    if (
+      !user ||
+      !user.reset_password_expires ||
+      user.reset_password_expires < new Date()
+    ) {
+      throw new BadRequestException(
+        'Lien de réinitialisation invalide ou expiré',
+      );
     }
 
     const hash = await bcrypt.hash(newPassword, 10);
@@ -188,7 +219,11 @@ export class AuthService {
     });
   }
 
-  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
     const user = await this.usersRepo
       .createQueryBuilder('user')
       .addSelect('user.password')
@@ -198,10 +233,13 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Utilisateur introuvable');
 
     const match = await bcrypt.compare(currentPassword, user.password);
-    if (!match) throw new UnauthorizedException('Mot de passe actuel incorrect');
+    if (!match)
+      throw new UnauthorizedException('Mot de passe actuel incorrect');
 
     if (newPassword.length < 8) {
-      throw new BadRequestException('Le nouveau mot de passe doit contenir au moins 8 caractères');
+      throw new BadRequestException(
+        'Le nouveau mot de passe doit contenir au moins 8 caractères',
+      );
     }
 
     const hash = await bcrypt.hash(newPassword, 10);
@@ -287,7 +325,9 @@ export class AuthService {
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Google OAuth error [${error?.constructor?.name ?? 'unknown'}]: ${msg}`);
+      this.logger.error(
+        `Google OAuth error [${error?.constructor?.name ?? 'unknown'}]: ${msg}`,
+      );
       throw new UnauthorizedException('Authentification Google échouée');
     }
   }

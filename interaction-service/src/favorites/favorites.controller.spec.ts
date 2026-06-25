@@ -54,7 +54,12 @@ describe('FavoritesController', () => {
 
   describe('add', () => {
     it('should add a favorite', async () => {
-      const favorite = { id: 1, user_id: 100, product_id: 42, created_at: new Date() };
+      const favorite = {
+        id: 1,
+        user_id: 100,
+        product_id: 42,
+        created_at: new Date(),
+      };
       service.add.mockResolvedValue(favorite as any);
 
       const result = await controller.add(mockReq, { product_id: 42 });

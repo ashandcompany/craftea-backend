@@ -14,7 +14,10 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FilesInterceptor,
+} from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ArtistsService } from './artists.service.js';
 import { CreateArtistDto } from './dto/create-artist.dto.js';
@@ -39,7 +42,10 @@ export class ArtistsController {
   ) {}
 
   private assertInternalToken(req: any) {
-    const expected = this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '');
+    const expected = this.configService.get<string>(
+      'INTERNAL_SERVICE_TOKEN',
+      '',
+    );
     const provided = req.headers['x-service-token'];
 
     if (!expected || provided !== expected) {
@@ -61,7 +67,8 @@ export class ArtistsController {
   update(
     @Request() req,
     @Body() dto: UpdateArtistDto,
-    @UploadedFiles() files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
+    @UploadedFiles()
+    files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
     return this.artistsService.update(req.user.id, dto, files || {});
   }
@@ -154,7 +161,8 @@ export class ArtistsController {
   create(
     @Request() req,
     @Body() dto: CreateArtistDto,
-    @UploadedFiles() files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
+    @UploadedFiles()
+    files: { banner?: Express.Multer.File[]; logo?: Express.Multer.File[] },
   ) {
     return this.artistsService.create(dto, req.user.id, files || {});
   }
@@ -162,13 +170,23 @@ export class ArtistsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('artist')
   @Post('profile/me/verification')
-  @UseInterceptors(FilesInterceptor('files', 5, { storage: memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }))
+  @UseInterceptors(
+    FilesInterceptor('files', 5, {
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
   submitVerification(
     @Request() req,
     @UploadedFiles() files: Express.Multer.File[],
     @Body() dto: SubmitVerificationDto,
   ) {
-    return this.artistsService.submitVerification(req.user.id, files ?? [], dto.description, dto.names);
+    return this.artistsService.submitVerification(
+      req.user.id,
+      files ?? [],
+      dto.description,
+      dto.names,
+    );
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

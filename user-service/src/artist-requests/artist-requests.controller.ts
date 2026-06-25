@@ -67,7 +67,11 @@ export class ArtistRequestsController {
     @Body() dto: SendMessageDto,
     @Request() req,
   ) {
-    return this.artistRequestsService.adminAddMessage(id, req.user.id, dto.content);
+    return this.artistRequestsService.adminAddMessage(
+      id,
+      req.user.id,
+      dto.content,
+    );
   }
 
   /** Admin: approve or reject */

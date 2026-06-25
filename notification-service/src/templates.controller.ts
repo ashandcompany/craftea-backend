@@ -1,4 +1,10 @@
-import { Controller, Get, Header, NotFoundException, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  NotFoundException,
+  Param,
+} from '@nestjs/common';
 import { orderConfirmationTemplate } from './templates/order-confirmation.template.js';
 import { stripeKycInviteTemplate } from './templates/stripe-kyc-invite.template.js';
 import { stripeKycConfirmedTemplate } from './templates/stripe-kyc-confirmed.template.js';
@@ -25,12 +31,17 @@ export class TemplatesController {
       case 'kyc-invite':
         return stripeKycInviteTemplate({
           artistName: 'Marie Dupont',
-          onboardingUrl: 'https://connect.stripe.com/onboarding/acct_1234567890',
+          onboardingUrl:
+            'https://connect.stripe.com/onboarding/acct_1234567890',
         });
       case 'kyc-confirmed':
         return stripeKycConfirmedTemplate({ artistName: 'Marie Dupont' });
       case 'payout-sent':
-        return payoutSentTemplate({ amount: 15000, currency: 'eur', estimatedDays: 3 });
+        return payoutSentTemplate({
+          amount: 15000,
+          currency: 'eur',
+          estimatedDays: 3,
+        });
       case 'payout-failed':
         return payoutFailedTemplate({ amount: 10000, currency: 'eur' });
       default:

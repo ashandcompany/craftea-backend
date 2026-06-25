@@ -39,7 +39,11 @@ export class ShopShippingMethod {
   delivery_time_max: number | null;
 
   /** Unité du délai (jours / semaines) */
-  @Column({ type: 'enum', enum: DeliveryTimeUnit, default: DeliveryTimeUnit.DAYS })
+  @Column({
+    type: 'enum',
+    enum: DeliveryTimeUnit,
+    default: DeliveryTimeUnit.DAYS,
+  })
   delivery_time_unit: DeliveryTimeUnit;
 
   @CreateDateColumn({ name: 'created_at' })

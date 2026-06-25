@@ -5,9 +5,7 @@ import { Log } from './entities/log.entity.js';
 
 @Injectable()
 export class LogsService {
-  constructor(
-    @InjectRepository(Log) private logsRepo: Repository<Log>,
-  ) {}
+  constructor(@InjectRepository(Log) private logsRepo: Repository<Log>) {}
 
   async create(data: Partial<Log>) {
     const log = this.logsRepo.create(data);

@@ -45,7 +45,12 @@ export class MessagingController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
   ) {
-    return this.messagingService.getMessages(req.user.id, conversationId, page, limit);
+    return this.messagingService.getMessages(
+      req.user.id,
+      conversationId,
+      page,
+      limit,
+    );
   }
 
   @Post('conversations/:id/messages')
@@ -54,7 +59,11 @@ export class MessagingController {
     @Param('id', ParseIntPipe) conversationId: number,
     @Body() dto: CreateMessageDto,
   ) {
-    return this.messagingService.sendMessage(req.user.id, conversationId, dto.content);
+    return this.messagingService.sendMessage(
+      req.user.id,
+      conversationId,
+      dto.content,
+    );
   }
 
   @Patch('conversations/:id/read')

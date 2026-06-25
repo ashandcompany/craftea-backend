@@ -12,7 +12,10 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 import { Payment, PaymentStatus } from './entities/payment.entity.js';
-import { CreatePaymentDto, ConfirmPaymentDto } from './dto/create-payment.dto.js';
+import {
+  CreatePaymentDto,
+  ConfirmPaymentDto,
+} from './dto/create-payment.dto.js';
 import { RefundPaymentDto } from './dto/refund-payment.dto.js';
 import { StripeService } from './stripe.service.js';
 import { WalletService } from './wallet.service.js';
@@ -22,22 +25,30 @@ import Stripe from 'stripe';
 
 @Injectable()
 export class PaymentsService {
-    private applyIntentStatus(payment: Payment, intent: Stripe.PaymentIntent) {
-      if (intent.status === 'succeeded') {
-        payment.status = PaymentStatus.COMPLETED;
-        const latestCharge = intent.latest_charge;
-        if (latestCharge && typeof latestCharge === 'object' && 'receipt_url' in latestCharge) {
-          payment.stripe_receipt_url = (latestCharge as any).receipt_url ?? undefined;
-        }
-        return;
+  private applyIntentStatus(payment: Payment, intent: Stripe.PaymentIntent) {
+    if (intent.status === 'succeeded') {
+      payment.status = PaymentStatus.COMPLETED;
+      const latestCharge = intent.latest_charge;
+      if (
+        latestCharge &&
+        typeof latestCharge === 'object' &&
+        'receipt_url' in latestCharge
+      ) {
+        payment.stripe_receipt_url =
+          (latestCharge as any).receipt_url ?? undefined;
       }
-
-      if (intent.status === 'requires_payment_method' || intent.status === 'canceled') {
-        payment.status = PaymentStatus.FAILED;
-        payment.error_detail = `Stripe status: ${intent.status}`;
-      }
-      // processing / requires_action => keep pending
+      return;
     }
+
+    if (
+      intent.status === 'requires_payment_method' ||
+      intent.status === 'canceled'
+    ) {
+      payment.status = PaymentStatus.FAILED;
+      payment.error_detail = `Stripe status: ${intent.status}`;
+    }
+    // processing / requires_action => keep pending
+  }
 
   private readonly logger = new Logger(PaymentsService.name);
   private readonly orderUrl: string;
@@ -50,8 +61,14 @@ export class PaymentsService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.orderUrl = this.configService.get<string>('ORDER_URL', 'http://order-service:3005');
-    this.artistUrl = this.configService.get<string>('ARTIST_URL', 'http://artist-service:3002');
+    this.orderUrl = this.configService.get<string>(
+      'ORDER_URL',
+      'http://order-service:3005',
+    );
+    this.artistUrl = this.configService.get<string>(
+      'ARTIST_URL',
+      'http://artist-service:3002',
+    );
   }
 
   /**
@@ -63,20 +80,32 @@ export class PaymentsService {
    * Resolves the artist's Stripe account ID from the order items.
    * Looks up shop → artist → stripe_account_id.
    */
-  private async resolveArtistStripeAccount(orderId: number): Promise<string | null> {
+  private async resolveArtistStripeAccount(
+    orderId: number,
+  ): Promise<string | null> {
     try {
       // Get order with items to find shop_ids (internal endpoint, no JWT needed)
       const { data: order } = await firstValueFrom(
-        this.httpService.get(`${this.orderUrl}/api/orders/internal/${orderId}`, {
-          headers: { 'x-service-token': this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '') },
-        }),
+        this.httpService.get(
+          `${this.orderUrl}/api/orders/internal/${orderId}`,
+          {
+            headers: {
+              'x-service-token': this.configService.get<string>(
+                'INTERNAL_SERVICE_TOKEN',
+                '',
+              ),
+            },
+          },
+        ),
       );
 
-      const shopIds = [...new Set(
-        (order?.items || [])
-          .map((item: any) => item.shop_id)
-          .filter((id: number | undefined): id is number => id != null),
-      )];
+      const shopIds = [
+        ...new Set(
+          (order?.items || [])
+            .map((item: any) => item.shop_id)
+            .filter((id: number | undefined): id is number => id != null),
+        ),
+      ];
 
       if (shopIds.length === 0) return null;
 
@@ -96,7 +125,9 @@ export class PaymentsService {
 
       return artist.stripe_account_id;
     } catch (error) {
-      this.logger.warn(`Could not resolve artist Stripe account for order ${orderId}: ${error}`);
+      this.logger.warn(
+        `Could not resolve artist Stripe account for order ${orderId}: ${error}`,
+      );
       return null;
     }
   }
@@ -157,14 +188,18 @@ export class PaymentsService {
     return payment;
   }
 
-  async handleOrderCompleted(payload: OrderCompletedEventDto): Promise<Payment | { skipped: true }> {
+  async handleOrderCompleted(
+    payload: OrderCompletedEventDto,
+  ): Promise<Payment | { skipped: true }> {
     const payment = await this.paymentsRepo.findOne({
       where: { order_id: payload.orderId },
       order: { created_at: 'DESC' },
     });
 
     if (!payment) {
-      this.logger.warn(`No payment found for completed order ${payload.orderId}`);
+      this.logger.warn(
+        `No payment found for completed order ${payload.orderId}`,
+      );
       return { skipped: true };
     }
 
@@ -193,7 +228,11 @@ export class PaymentsService {
 
     for (const credit of credits) {
       if (credit.amountCents <= 0) continue;
-      await this.walletService.credit(credit.artistId, credit.amountCents, payload.orderId);
+      await this.walletService.credit(
+        credit.artistId,
+        credit.amountCents,
+        payload.orderId,
+      );
     }
 
     payment.wallet_credited = true;
@@ -203,7 +242,9 @@ export class PaymentsService {
     return payment;
   }
 
-  async handleOrderConfirmed(payload: OrderCompletedEventDto): Promise<{ success: true } | { skipped: true }> {
+  async handleOrderConfirmed(
+    payload: OrderCompletedEventDto,
+  ): Promise<{ success: true } | { skipped: true }> {
     const payment = await this.paymentsRepo.findOne({
       where: { order_id: payload.orderId },
       order: { created_at: 'DESC' },
@@ -224,13 +265,19 @@ export class PaymentsService {
 
     for (const credit of credits) {
       if (credit.amountCents <= 0) continue;
-      await this.walletService.creditPending(credit.artistId, credit.amountCents, payload.orderId);
+      await this.walletService.creditPending(
+        credit.artistId,
+        credit.amountCents,
+        payload.orderId,
+      );
     }
 
     return { success: true };
   }
 
-  async handleOrderCancelled(payload: OrderCompletedEventDto): Promise<{ success: true } | { skipped: true }> {
+  async handleOrderCancelled(
+    payload: OrderCompletedEventDto,
+  ): Promise<{ success: true } | { skipped: true }> {
     const payment = await this.paymentsRepo.findOne({
       where: { order_id: payload.orderId },
       order: { created_at: 'DESC' },
@@ -244,7 +291,11 @@ export class PaymentsService {
     const credits = this.computeArtistCredits(artistAmountCents, payload);
     for (const credit of credits) {
       if (credit.amountCents <= 0) continue;
-      await this.walletService.cancelPending(credit.artistId, credit.amountCents, payload.orderId);
+      await this.walletService.cancelPending(
+        credit.artistId,
+        credit.amountCents,
+        payload.orderId,
+      );
     }
 
     return { success: true };
@@ -254,14 +305,20 @@ export class PaymentsService {
     totalArtistAmountCents: number,
     payload: OrderCompletedEventDto,
   ): Array<{ artistId: number; amountCents: number }> {
-    const splits = (payload.splits ?? []).filter((s) => s.artistId > 0 && s.grossAmount > 0);
+    const splits = (payload.splits ?? []).filter(
+      (s) => s.artistId > 0 && s.grossAmount > 0,
+    );
 
     if (splits.length === 0 && payload.artistId) {
-      return [{ artistId: payload.artistId, amountCents: totalArtistAmountCents }];
+      return [
+        { artistId: payload.artistId, amountCents: totalArtistAmountCents },
+      ];
     }
 
     if (splits.length === 1) {
-      return [{ artistId: splits[0].artistId, amountCents: totalArtistAmountCents }];
+      return [
+        { artistId: splits[0].artistId, amountCents: totalArtistAmountCents },
+      ];
     }
 
     const grossTotal = splits.reduce((sum, s) => sum + s.grossAmount, 0);
@@ -277,7 +334,7 @@ export class PaymentsService {
       };
     });
 
-    let allocated = base.reduce((sum, b) => sum + b.amountCents, 0);
+    const allocated = base.reduce((sum, b) => sum + b.amountCents, 0);
     let remaining = totalArtistAmountCents - allocated;
 
     base.sort((a, b) => b.remainder - a.remainder);
@@ -288,7 +345,10 @@ export class PaymentsService {
       idx += 1;
     }
 
-    return base.map((b) => ({ artistId: b.artistId, amountCents: b.amountCents }));
+    return base.map((b) => ({
+      artistId: b.artistId,
+      amountCents: b.amountCents,
+    }));
   }
 
   /**
@@ -297,11 +357,16 @@ export class PaymentsService {
    */
   async confirm(dto: ConfirmPaymentDto, userId: number): Promise<Payment> {
     const payment = await this.paymentsRepo.findOne({
-      where: { stripe_payment_intent_id: dto.payment_intent_id, user_id: userId },
+      where: {
+        stripe_payment_intent_id: dto.payment_intent_id,
+        user_id: userId,
+      },
     });
     if (!payment) throw new NotFoundException('Paiement introuvable');
 
-    const intent = await this.stripeService.retrievePaymentIntent(dto.payment_intent_id);
+    const intent = await this.stripeService.retrievePaymentIntent(
+      dto.payment_intent_id,
+    );
 
     this.applyIntentStatus(payment, intent);
 
@@ -309,7 +374,9 @@ export class PaymentsService {
     return payment;
   }
 
-  async confirmPaymentFromWebhook(intent: Stripe.PaymentIntent): Promise<Payment | null> {
+  async confirmPaymentFromWebhook(
+    intent: Stripe.PaymentIntent,
+  ): Promise<Payment | null> {
     const payment = await this.paymentsRepo.findOne({
       where: { stripe_payment_intent_id: intent.id },
       order: { created_at: 'DESC' },
@@ -332,12 +399,17 @@ export class PaymentsService {
             { status: 'confirmed' },
             {
               headers: {
-                'x-service-token': this.configService.get<string>('INTERNAL_SERVICE_TOKEN', ''),
+                'x-service-token': this.configService.get<string>(
+                  'INTERNAL_SERVICE_TOKEN',
+                  '',
+                ),
               },
             },
           ),
         );
-        this.logger.debug(`Order ${payment.order_id} auto-confirmed via payment webhook`);
+        this.logger.debug(
+          `Order ${payment.order_id} auto-confirmed via payment webhook`,
+        );
       } catch (err) {
         this.logger.error(
           `Failed to auto-confirm order ${payment.order_id} after successful payment: ${err}`,
@@ -391,17 +463,29 @@ export class PaymentsService {
         // If we can't compute splits, use the order lookup fallback
         if (credits.length === 0 && payment.order_id) {
           try {
-            const resolved = await this.resolveArtistIdFromOrder(payment.order_id);
+            const resolved = await this.resolveArtistIdFromOrder(
+              payment.order_id,
+            );
             if (resolved) {
-              await this.walletService.cancelPending(resolved, artistAmountCents, payment.order_id);
+              await this.walletService.cancelPending(
+                resolved,
+                artistAmountCents,
+                payment.order_id,
+              );
             }
           } catch (error) {
-            this.logger.error(`Failed to reverse wallet for refund on order ${payment.order_id}: ${error}`);
+            this.logger.error(
+              `Failed to reverse wallet for refund on order ${payment.order_id}: ${error}`,
+            );
           }
         } else {
           for (const credit of credits) {
             if (credit.amountCents <= 0) continue;
-            await this.walletService.cancelPending(credit.artistId, credit.amountCents, payment.order_id);
+            await this.walletService.cancelPending(
+              credit.artistId,
+              credit.amountCents,
+              payment.order_id,
+            );
           }
         }
 
@@ -416,19 +500,31 @@ export class PaymentsService {
   /**
    * Resolve artist ID from order (for refund reversal).
    */
-  private async resolveArtistIdFromOrder(orderId: number): Promise<number | null> {
+  private async resolveArtistIdFromOrder(
+    orderId: number,
+  ): Promise<number | null> {
     try {
       const { data: order } = await firstValueFrom(
-        this.httpService.get(`${this.orderUrl}/api/orders/internal/${orderId}`, {
-          headers: { 'x-service-token': this.configService.get<string>('INTERNAL_SERVICE_TOKEN', '') },
-        }),
+        this.httpService.get(
+          `${this.orderUrl}/api/orders/internal/${orderId}`,
+          {
+            headers: {
+              'x-service-token': this.configService.get<string>(
+                'INTERNAL_SERVICE_TOKEN',
+                '',
+              ),
+            },
+          },
+        ),
       );
 
-      const shopIds = [...new Set(
-        (order?.items || [])
-          .map((item: any) => item.shop_id)
-          .filter((id: number | undefined): id is number => id != null),
-      )];
+      const shopIds = [
+        ...new Set(
+          (order?.items || [])
+            .map((item: any) => item.shop_id)
+            .filter((id: number | undefined): id is number => id != null),
+        ),
+      ];
 
       if (shopIds.length === 0) return null;
 
@@ -438,7 +534,9 @@ export class PaymentsService {
 
       return shop?.artist_id ?? null;
     } catch (error) {
-      this.logger.warn(`Could not resolve artist ID for order ${orderId}: ${error}`);
+      this.logger.warn(
+        `Could not resolve artist ID for order ${orderId}: ${error}`,
+      );
       return null;
     }
   }
@@ -450,7 +548,10 @@ export class PaymentsService {
     });
   }
 
-  async findOne(id: number, currentUser: { id: number; role: string }): Promise<Payment> {
+  async findOne(
+    id: number,
+    currentUser: { id: number; role: string },
+  ): Promise<Payment> {
     const payment = await this.paymentsRepo.findOne({ where: { id } });
     if (!payment) throw new NotFoundException('Paiement introuvable');
 
@@ -481,7 +582,9 @@ export class PaymentsService {
     }
 
     if (payment.status !== PaymentStatus.COMPLETED) {
-      throw new BadRequestException('Seul un paiement complété peut être remboursé');
+      throw new BadRequestException(
+        'Seul un paiement complété peut être remboursé',
+      );
     }
 
     if (!payment.stripe_payment_intent_id) {

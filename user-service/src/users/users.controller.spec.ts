@@ -107,7 +107,11 @@ describe('UsersController', () => {
       const expected = { id: 1, role: 'artist' };
       service.changeRole.mockResolvedValue(expected);
 
-      const result = await controller.changeRole(1, { role: 'artist' }, mockAdminReq);
+      const result = await controller.changeRole(
+        1,
+        { role: 'artist' },
+        mockAdminReq,
+      );
 
       expect(service.changeRole).toHaveBeenCalledWith(1, 'artist', 99);
       expect(result).toEqual(expected);

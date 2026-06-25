@@ -44,10 +44,7 @@ export class CartsController {
 
   // Supprimer un item du panier
   @Delete('items/:itemId')
-  removeItem(
-    @Param('itemId', ParseIntPipe) itemId: number,
-    @Request() req,
-  ) {
+  removeItem(@Param('itemId', ParseIntPipe) itemId: number, @Request() req) {
     return this.cartsService.removeItem(req.user.id, itemId);
   }
 

@@ -1,10 +1,11 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 const makeContext = (userRole: string, handlerRoles: string[] | undefined) => {
-  const reflector = { getAllAndOverride: jest.fn().mockReturnValue(handlerRoles) } as any;
+  const reflector = {
+    getAllAndOverride: jest.fn().mockReturnValue(handlerRoles),
+  } as any;
   const guard = new RolesGuard(reflector);
   const context = {
     getHandler: jest.fn(),
@@ -46,9 +47,9 @@ describe('RolesGuard', () => {
 
     guard.canActivate(context);
 
-    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
   });
 });

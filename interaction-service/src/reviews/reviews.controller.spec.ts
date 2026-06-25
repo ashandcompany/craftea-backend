@@ -7,7 +7,7 @@ describe('ReviewsController', () => {
   let service: jest.Mocked<ReviewsService>;
 
   const mockReq = { user: { id: 100, role: 'user' } };
-  const mockAdminReq = { user: { id: 1, role: 'admin' } };
+  const _mockAdminReq = { user: { id: 1, role: 'admin' } };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -83,7 +83,14 @@ describe('ReviewsController', () => {
   describe('update', () => {
     it('should update a review', async () => {
       const dto = { rating: 3 };
-      const updated = { id: 1, user_id: 100, product_id: 42, rating: 3, comment: null, created_at: new Date() };
+      const updated = {
+        id: 1,
+        user_id: 100,
+        product_id: 42,
+        rating: 3,
+        comment: null,
+        created_at: new Date(),
+      };
       service.update.mockResolvedValue(updated as any);
 
       const result = await controller.update(1, mockReq, dto);

@@ -3,7 +3,9 @@ import { Transform } from 'class-transformer';
 
 export class UpdateReviewDto {
   @IsOptional()
-  @Transform(({ value }) => (value !== undefined ? parseInt(value, 10) : undefined))
+  @Transform(({ value }) =>
+    value !== undefined ? parseInt(value, 10) : undefined,
+  )
   @IsInt()
   @Min(1)
   @Max(5)

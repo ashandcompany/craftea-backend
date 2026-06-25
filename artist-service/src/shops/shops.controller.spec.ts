@@ -264,7 +264,11 @@ describe('ShopsController', () => {
       service.updateShippingMethods.mockResolvedValue([mockShippingMethod]);
 
       const mockRequest = { user: { id: 100 } };
-      const result = await controller.updateShippingMethods(1, dto, mockRequest);
+      const result = await controller.updateShippingMethods(
+        1,
+        dto,
+        mockRequest,
+      );
 
       expect(service.updateShippingMethods).toHaveBeenCalledWith(1, dto, 100);
       expect(result).toEqual([mockShippingMethod]);

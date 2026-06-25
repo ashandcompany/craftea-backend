@@ -38,7 +38,9 @@ describe('AddressesService', () => {
     }).compile();
 
     service = module.get<AddressesService>(AddressesService);
-    addressesRepo = module.get(getRepositoryToken(Address)) as jest.Mocked<Repository<Address>>;
+    addressesRepo = module.get(getRepositoryToken(Address)) as jest.Mocked<
+      Repository<Address>
+    >;
   });
 
   describe('findByUser', () => {
@@ -47,7 +49,9 @@ describe('AddressesService', () => {
 
       const result = await service.findByUser(100);
 
-      expect(addressesRepo.find).toHaveBeenCalledWith({ where: { user_id: 100 } });
+      expect(addressesRepo.find).toHaveBeenCalledWith({
+        where: { user_id: 100 },
+      });
       expect(result).toEqual([mockAddress]);
     });
   });
@@ -66,7 +70,10 @@ describe('AddressesService', () => {
 
       const result = await service.create(dto, 100);
 
-      expect(addressesRepo.create).toHaveBeenCalledWith({ ...dto, user_id: 100 });
+      expect(addressesRepo.create).toHaveBeenCalledWith({
+        ...dto,
+        user_id: 100,
+      });
       expect(addressesRepo.save).toHaveBeenCalledWith(mockAddress);
       expect(result).toEqual(mockAddress);
     });
@@ -102,7 +109,10 @@ describe('AddressesService', () => {
 
       const result = await service.remove(1, 100);
 
-      expect(addressesRepo.delete).toHaveBeenCalledWith({ id: 1, user_id: 100 });
+      expect(addressesRepo.delete).toHaveBeenCalledWith({
+        id: 1,
+        user_id: 100,
+      });
       expect(result).toEqual({ message: 'Adresse supprimée' });
     });
 
