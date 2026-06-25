@@ -78,10 +78,14 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
-      "^(\\.\\.?/.*)\\.js$": "$1"
+      "^(\\.\\.?/.*)\\.js$": "$1",
+      "^amqplib$": "<rootDir>/__mocks__/amqplib.js",
+      "^uuid$": "<rootDir>/__mocks__/uuid.js"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.module.(t|j)s",
+      "!**/main.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"

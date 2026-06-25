@@ -75,7 +75,7 @@ describe('ReviewsController', () => {
 
       const result = await controller.create(mockReq, dto);
 
-      expect(service.create).toHaveBeenCalledWith(100, dto);
+      expect(service.create).toHaveBeenCalledWith(100, dto, []);
       expect(result).toEqual(review);
     });
   });
@@ -95,7 +95,7 @@ describe('ReviewsController', () => {
 
       const result = await controller.update(1, mockReq, dto);
 
-      expect(service.update).toHaveBeenCalledWith(1, 100, 'user', dto);
+      expect(service.update).toHaveBeenCalledWith(1, 100, 'user', dto, []);
       expect(result).toEqual(updated);
     });
   });
