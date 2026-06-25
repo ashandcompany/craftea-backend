@@ -1,15 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
 import { User, UserRole } from './entities/user.entity';
 import { Log } from '../logs/entities/log.entity';
+import { MinioService } from '../minio/minio.service';
 
 describe('UsersService', () => {
   let service: UsersService;
   let usersRepo: jest.Mocked<Repository<User>>;
   let logsRepo: jest.Mocked<Repository<Log>>;
+  let minioService: jest.Mocked<MinioService>;
 
   const mockUser: User = {
     id: 1,
@@ -55,6 +61,13 @@ describe('UsersService', () => {
             save: jest.fn(),
           },
         },
+        {
+          provide: MinioService,
+          useValue: {
+            uploadFile: jest.fn(),
+            deleteFile: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -65,6 +78,7 @@ describe('UsersService', () => {
     logsRepo = module.get(getRepositoryToken(Log)) as jest.Mocked<
       Repository<Log>
     >;
+    minioService = module.get(MinioService) as jest.Mocked<MinioService>;
   });
 
   describe('findAll', () => {
@@ -164,7 +178,7 @@ describe('UsersService', () => {
   });
 
   describe('toggleActive', () => {
-    it('should toggle user active status', async () => {
+    it('should toggle user active status to false', async () => {
       usersRepo.findOne.mockResolvedValue({ ...mockUser, is_active: true });
       usersRepo.save.mockResolvedValue({ ...mockUser, is_active: false });
       logsRepo.create.mockReturnValue(mockLog);
@@ -173,6 +187,17 @@ describe('UsersService', () => {
       const result = await service.toggleActive(1, 99);
 
       expect(result).toEqual({ id: 1, is_active: false });
+    });
+
+    it('should toggle user active status to true', async () => {
+      usersRepo.findOne.mockResolvedValue({ ...mockUser, is_active: false });
+      usersRepo.save.mockResolvedValue({ ...mockUser, is_active: true });
+      logsRepo.create.mockReturnValue(mockLog);
+      logsRepo.save.mockResolvedValue(mockLog);
+
+      const result = await service.toggleActive(1, 99);
+
+      expect(result).toEqual({ id: 1, is_active: true });
     });
 
     it('should throw NotFoundException if user not found', async () => {
@@ -202,6 +227,100 @@ describe('UsersService', () => {
       await expect(service.changeRole(999, 'admin', 99)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('updateAvatar', () => {
+    const mockFile = {
+      originalname: 'avatar.jpg',
+      buffer: Buffer.from(''),
+      mimetype: 'image/jpeg',
+      size: 100,
+    } as Express.Multer.File;
+
+    it('should throw ForbiddenException if non-owner non-admin', async () => {
+      await expect(
+        service.updateAvatar(1, mockFile, { id: 2, role: 'buyer' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if file is missing', async () => {
+      await expect(
+        service.updateAvatar(1, null as any, { id: 1, role: 'buyer' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should delete old avatar and upload new one', async () => {
+      const userWithAvatar = { ...mockUser, avatar_url: 'old-key.jpg' };
+      usersRepo.findOne.mockResolvedValue(userWithAvatar);
+      minioService.deleteFile.mockResolvedValue(undefined);
+      minioService.uploadFile.mockResolvedValue('new-key.jpg');
+      usersRepo.save.mockResolvedValue({
+        ...userWithAvatar,
+        avatar_url: 'new-key.jpg',
+      });
+
+      const result = await service.updateAvatar(1, mockFile, {
+        id: 1,
+        role: 'buyer',
+      });
+
+      expect(minioService.deleteFile).toHaveBeenCalledWith('old-key.jpg');
+      expect(minioService.uploadFile).toHaveBeenCalledWith(mockFile);
+      expect(result.avatar_url).toBe('new-key.jpg');
+    });
+
+    it('should upload avatar without deleting when no previous avatar', async () => {
+      const userWithoutAvatar = { ...mockUser, avatar_url: undefined };
+      usersRepo.findOne.mockResolvedValue(userWithoutAvatar);
+      minioService.uploadFile.mockResolvedValue('new-key.jpg');
+      usersRepo.save.mockResolvedValue({
+        ...userWithoutAvatar,
+        avatar_url: 'new-key.jpg',
+      });
+
+      const result = await service.updateAvatar(1, mockFile, {
+        id: 1,
+        role: 'buyer',
+      });
+
+      expect(minioService.deleteFile).not.toHaveBeenCalled();
+      expect(result.avatar_url).toBe('new-key.jpg');
+    });
+
+    it('should allow admin to update any user avatar', async () => {
+      usersRepo.findOne.mockResolvedValue({ ...mockUser });
+      minioService.uploadFile.mockResolvedValue('new-key.jpg');
+      usersRepo.save.mockResolvedValue({
+        ...mockUser,
+        avatar_url: 'new-key.jpg',
+      });
+
+      const result = await service.updateAvatar(1, mockFile, {
+        id: 99,
+        role: 'admin',
+      });
+
+      expect(result.avatar_url).toBe('new-key.jpg');
+    });
+  });
+
+  describe('selfDeactivate', () => {
+    it('should set user inactive and log the action', async () => {
+      usersRepo.update.mockResolvedValue({ affected: 1 } as any);
+      logsRepo.create.mockReturnValue(mockLog);
+      logsRepo.save.mockResolvedValue(mockLog);
+
+      await service.selfDeactivate(1);
+
+      expect(usersRepo.update).toHaveBeenCalledWith(1, { is_active: false });
+      expect(logsRepo.create).toHaveBeenCalledWith({
+        user_id: 1,
+        action: 'deactivate_user',
+        entity: 'user',
+        entity_id: 1,
+      });
+      expect(logsRepo.save).toHaveBeenCalled();
     });
   });
 });
