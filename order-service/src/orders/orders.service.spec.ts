@@ -99,10 +99,16 @@ describe('OrdersService', () => {
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
-    ordersRepo = module.get(getRepositoryToken(Order)) as jest.Mocked<Repository<Order>>;
-    itemsRepo = module.get(getRepositoryToken(OrderItem)) as jest.Mocked<Repository<OrderItem>>;
+    ordersRepo = module.get(getRepositoryToken(Order)) as jest.Mocked<
+      Repository<Order>
+    >;
+    itemsRepo = module.get(getRepositoryToken(OrderItem)) as jest.Mocked<
+      Repository<OrderItem>
+    >;
     httpService = module.get(HttpService) as jest.Mocked<HttpService>;
-    orderEventsPublisher = module.get(OrderEventsPublisher) as jest.Mocked<OrderEventsPublisher>;
+    orderEventsPublisher = module.get(
+      OrderEventsPublisher,
+    ) as jest.Mocked<OrderEventsPublisher>;
   });
 
   describe('create', () => {
@@ -155,7 +161,9 @@ describe('OrdersService', () => {
         })),
       );
 
-      await expect(service.create(dto, 100)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, 100)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should use product shipping_fee override when present', async () => {
@@ -299,7 +307,11 @@ describe('OrdersService', () => {
       httpService.get.mockImplementation(() => {
         getCount++;
         return of(
-          axiosResponse({ id: getCount === 1 ? 10 : 11, shop_id: 5, shipping_fee: null }),
+          axiosResponse({
+            id: getCount === 1 ? 10 : 11,
+            shop_id: 5,
+            shipping_fee: null,
+          }),
         );
       });
 
@@ -313,7 +325,9 @@ describe('OrdersService', () => {
         }));
       });
 
-      await expect(service.create(dtoMulti, 100)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dtoMulti, 100)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should create order without shipping_zone (defaults to france)', async () => {
@@ -361,7 +375,9 @@ describe('OrdersService', () => {
         throwError(() => new Error('Network error')),
       );
 
-      await expect(service.create(dto, 100)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, 100)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -536,9 +552,16 @@ describe('OrdersService', () => {
     });
 
     it('should emit order-completed event when status changes to DELIVERED', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.DELIVERED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.DELIVERED,
+      });
 
       httpService.get.mockReturnValue(
         of(axiosResponse({ id: 5, artist_id: 99 })),
@@ -581,12 +604,23 @@ describe('OrdersService', () => {
     });
 
     it('should emit order-confirmed event when status changes to CONFIRMED', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CONFIRMED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CONFIRMED,
+      });
 
       httpService.get.mockImplementation((url: string) => {
-        if (url.includes('/api/shops/') && !url.includes('shipping') && !url.includes('user')) {
+        if (
+          url.includes('/api/shops/') &&
+          !url.includes('shipping') &&
+          !url.includes('user')
+        ) {
           return of(axiosResponse({ id: 5, artist_id: 99 }));
         }
         if (url.includes('/api/users/internal')) {
@@ -622,7 +656,10 @@ describe('OrdersService', () => {
         items: mockItems,
       };
       ordersRepo.findOne.mockResolvedValue(confirmedOrder);
-      ordersRepo.save.mockResolvedValue({ ...confirmedOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...confirmedOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
       httpService.patch.mockReturnValue(of(axiosResponse({ success: true })));
       httpService.get.mockImplementation((url: string) => {
@@ -656,15 +693,20 @@ describe('OrdersService', () => {
         items: mockItems,
       };
       ordersRepo.findOne.mockResolvedValue(preparingOrder);
-      ordersRepo.save.mockResolvedValue({ ...preparingOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...preparingOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
       httpService.patch.mockReturnValue(of(axiosResponse({ success: true })));
       httpService.get.mockImplementation((url: string) => {
         if (url.includes('/api/payments/order')) return of(axiosResponse([]));
         // getArtistShopIds returns an array of shop objects
-        if (url.includes('/api/shops/user/')) return of(axiosResponse([{ id: 5 }]));
+        if (url.includes('/api/shops/user/'))
+          return of(axiosResponse([{ id: 5 }]));
         // shop detail returns single object with artist_id
-        if (url.includes('/api/shops/')) return of(axiosResponse({ id: 5, artist_id: 99 }));
+        if (url.includes('/api/shops/'))
+          return of(axiosResponse({ id: 5, artist_id: 99 }));
         return of(axiosResponse({}));
       });
       httpService.post.mockReturnValue(of(axiosResponse({ ok: true })));
@@ -684,9 +726,16 @@ describe('OrdersService', () => {
     });
 
     it('should NOT emit order-cancelled when cancelled from PENDING status', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
       httpService.patch.mockReturnValue(of(axiosResponse({ success: true })));
       httpService.get.mockReturnValue(of(axiosResponse([])));
@@ -710,7 +759,10 @@ describe('OrdersService', () => {
         items: [{ ...mockItems[0], shop_id: undefined }],
       };
       ordersRepo.findOne.mockResolvedValue(noShopOrder);
-      ordersRepo.save.mockResolvedValue({ ...noShopOrder, status: OrderStatus.DELIVERED });
+      ordersRepo.save.mockResolvedValue({
+        ...noShopOrder,
+        status: OrderStatus.DELIVERED,
+      });
 
       await service.updateStatus(
         1,
@@ -729,26 +781,46 @@ describe('OrdersService', () => {
     it('should handle emitOrderCompleted failure gracefully (best-effort)', async () => {
       const pendingOrder = { ...mockOrder, items: mockItems };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.DELIVERED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.DELIVERED,
+      });
 
-      httpService.get.mockReturnValue(of(axiosResponse({ id: 5, artist_id: 99 })));
-      httpService.post.mockReturnValue(throwError(() => new Error('Payment down')));
+      httpService.get.mockReturnValue(
+        of(axiosResponse({ id: 5, artist_id: 99 })),
+      );
+      httpService.post.mockReturnValue(
+        throwError(() => new Error('Payment down')),
+      );
 
       await expect(
-        service.updateStatus(1, { status: OrderStatus.DELIVERED }, { id: 1, role: 'admin' }),
+        service.updateStatus(
+          1,
+          { status: OrderStatus.DELIVERED },
+          { id: 1, role: 'admin' },
+        ),
       ).resolves.toBeDefined();
     });
 
     it('should handle shop GET failure in buildArtistGrossSplits gracefully', async () => {
       const pendingOrder = { ...mockOrder, items: mockItems };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.DELIVERED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.DELIVERED,
+      });
 
       // Shop lookup always fails → splits empty → no POST
-      httpService.get.mockReturnValue(throwError(() => new Error('Shop service down')));
+      httpService.get.mockReturnValue(
+        throwError(() => new Error('Shop service down')),
+      );
 
       await expect(
-        service.updateStatus(1, { status: OrderStatus.DELIVERED }, { id: 1, role: 'admin' }),
+        service.updateStatus(
+          1,
+          { status: OrderStatus.DELIVERED },
+          { id: 1, role: 'admin' },
+        ),
       ).resolves.toBeDefined();
     });
 
@@ -759,7 +831,10 @@ describe('OrdersService', () => {
         items: mockItems,
       };
       ordersRepo.findOne.mockResolvedValue(confirmedOrder);
-      ordersRepo.save.mockResolvedValue({ ...confirmedOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...confirmedOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
       httpService.patch.mockReturnValue(of(axiosResponse({ success: true })));
       httpService.get.mockImplementation((url: string) => {
@@ -787,11 +862,20 @@ describe('OrdersService', () => {
     });
 
     it('should handle stock restore failure during cancellation (best-effort)', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
-      httpService.patch.mockReturnValue(throwError(() => new Error('Service down')));
+      httpService.patch.mockReturnValue(
+        throwError(() => new Error('Service down')),
+      );
       httpService.get.mockReturnValue(of(axiosResponse([])));
 
       await expect(
@@ -804,12 +888,21 @@ describe('OrdersService', () => {
     });
 
     it('should handle payment GET failure during cancellation (best-effort)', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
       httpService.patch.mockReturnValue(of(axiosResponse({ success: true })));
-      httpService.get.mockReturnValue(throwError(() => new Error('Payment service down')));
+      httpService.get.mockReturnValue(
+        throwError(() => new Error('Payment service down')),
+      );
 
       await expect(
         service.updateStatus(
@@ -821,12 +914,23 @@ describe('OrdersService', () => {
     });
 
     it('should publish order.confirmed notification after confirming (fire-and-forget)', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CONFIRMED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CONFIRMED,
+      });
 
       httpService.get.mockImplementation((url: string) => {
-        if (url.includes('/api/shops/') && !url.includes('shipping') && !url.includes('user')) {
+        if (
+          url.includes('/api/shops/') &&
+          !url.includes('shipping') &&
+          !url.includes('user')
+        ) {
           return of(axiosResponse({ id: 5, artist_id: 99 }));
         }
         if (url.includes('/api/users/internal')) {
@@ -841,9 +945,7 @@ describe('OrdersService', () => {
           );
         }
         if (url.includes('/api/payments/order')) {
-          return of(
-            axiosResponse([{ id: 'pay_1', commission_amount: 5 }]),
-          );
+          return of(axiosResponse([{ id: 'pay_1', commission_amount: 5 }]));
         }
         return of(axiosResponse({}));
       });
@@ -864,18 +966,31 @@ describe('OrdersService', () => {
     });
 
     it('should handle emitOrderConfirmed POST failure gracefully', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CONFIRMED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CONFIRMED,
+      });
 
       httpService.get.mockReturnValue(
         of(axiosResponse({ id: 5, artist_id: 99 })),
       );
       // POST to order-confirmed fails
-      httpService.post.mockReturnValue(throwError(() => new Error('Payment service down')));
+      httpService.post.mockReturnValue(
+        throwError(() => new Error('Payment service down')),
+      );
 
       await expect(
-        service.updateStatus(1, { status: OrderStatus.CONFIRMED }, { id: 1, role: 'admin' }),
+        service.updateStatus(
+          1,
+          { status: OrderStatus.CONFIRMED },
+          { id: 1, role: 'admin' },
+        ),
       ).resolves.toBeDefined();
     });
 
@@ -886,16 +1001,22 @@ describe('OrdersService', () => {
         items: mockItems,
       };
       ordersRepo.findOne.mockResolvedValue(confirmedOrder);
-      ordersRepo.save.mockResolvedValue({ ...confirmedOrder, status: OrderStatus.CANCELLED });
+      ordersRepo.save.mockResolvedValue({
+        ...confirmedOrder,
+        status: OrderStatus.CANCELLED,
+      });
 
       httpService.patch.mockReturnValue(of(axiosResponse({ success: true })));
       httpService.get.mockImplementation((url: string) => {
         if (url.includes('/api/payments/order')) return of(axiosResponse([]));
-        if (url.includes('/api/shops/')) return of(axiosResponse({ id: 5, artist_id: 99 }));
+        if (url.includes('/api/shops/'))
+          return of(axiosResponse({ id: 5, artist_id: 99 }));
         return of(axiosResponse({}));
       });
       // POST to order-cancelled fails
-      httpService.post.mockReturnValue(throwError(() => new Error('Payment service down')));
+      httpService.post.mockReturnValue(
+        throwError(() => new Error('Payment service down')),
+      );
 
       await expect(
         service.updateStatus(
@@ -907,12 +1028,23 @@ describe('OrdersService', () => {
     });
 
     it('should handle publishOrderConfirmedNotification failure gracefully', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CONFIRMED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CONFIRMED,
+      });
 
       httpService.get.mockImplementation((url: string) => {
-        if (url.includes('/api/shops/') && !url.includes('shipping') && !url.includes('user')) {
+        if (
+          url.includes('/api/shops/') &&
+          !url.includes('shipping') &&
+          !url.includes('user')
+        ) {
           return of(axiosResponse({ id: 5, artist_id: 99 }));
         }
         // User fetch fails → publishOrderConfirmedNotification outer catch runs
@@ -921,17 +1053,32 @@ describe('OrdersService', () => {
       httpService.post.mockReturnValue(of(axiosResponse({ ok: true })));
 
       await expect(
-        service.updateStatus(1, { status: OrderStatus.CONFIRMED }, { id: 1, role: 'admin' }),
+        service.updateStatus(
+          1,
+          { status: OrderStatus.CONFIRMED },
+          { id: 1, role: 'admin' },
+        ),
       ).resolves.toBeDefined();
     });
 
     it('should handle product fetch failure in notification enrichment (uses fallback name)', async () => {
-      const pendingOrder = { ...mockOrder, status: OrderStatus.PENDING, items: mockItems };
+      const pendingOrder = {
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        items: mockItems,
+      };
       ordersRepo.findOne.mockResolvedValue(pendingOrder);
-      ordersRepo.save.mockResolvedValue({ ...pendingOrder, status: OrderStatus.CONFIRMED });
+      ordersRepo.save.mockResolvedValue({
+        ...pendingOrder,
+        status: OrderStatus.CONFIRMED,
+      });
 
       httpService.get.mockImplementation((url: string) => {
-        if (url.includes('/api/shops/') && !url.includes('shipping') && !url.includes('user')) {
+        if (
+          url.includes('/api/shops/') &&
+          !url.includes('shipping') &&
+          !url.includes('user')
+        ) {
           return of(axiosResponse({ id: 5, artist_id: 99 }));
         }
         if (url.includes('/api/users/internal')) {
@@ -1022,7 +1169,9 @@ describe('OrdersService', () => {
     });
 
     it('should return empty array if artist shop request fails', async () => {
-      httpService.get.mockReturnValue(throwError(() => new Error('Service down')));
+      httpService.get.mockReturnValue(
+        throwError(() => new Error('Service down')),
+      );
 
       const result = await service.findByArtist(50);
 

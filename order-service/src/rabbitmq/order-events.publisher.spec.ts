@@ -103,7 +103,8 @@ describe('OrderEventsPublisher', () => {
       // Create publisher without calling onModuleInit (channel stays null)
       mockConnect.mockRejectedValue(new Error('Connection refused'));
       const module = await buildModule();
-      const freshPublisher = module.get<OrderEventsPublisher>(OrderEventsPublisher);
+      const freshPublisher =
+        module.get<OrderEventsPublisher>(OrderEventsPublisher);
       // onModuleInit NOT called → channel is null
 
       await expect(
@@ -120,7 +121,8 @@ describe('OrderEventsPublisher', () => {
     it('should log error when all connection attempts fail', async () => {
       // Build module before enabling fake timers to avoid NestJS timing issues
       const module = await buildModule();
-      const freshPublisher = module.get<OrderEventsPublisher>(OrderEventsPublisher);
+      const freshPublisher =
+        module.get<OrderEventsPublisher>(OrderEventsPublisher);
 
       jest.useFakeTimers();
       mockConnect.mockRejectedValue(new Error('Connection refused'));

@@ -116,9 +116,9 @@ describe('OrdersInternalController', () => {
     it('should throw ForbiddenException when expected token is undefined', async () => {
       configService.get.mockReturnValue(undefined as any);
 
-      await expect(
-        controller.updateStatus(1, dto, validToken),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.updateStatus(1, dto, validToken)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

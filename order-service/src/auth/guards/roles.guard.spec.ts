@@ -4,7 +4,11 @@ import { ExecutionContext } from '@nestjs/common';
 import { RolesGuard } from './roles.guard';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
-function createMockContext(user: { role: string }, handler = jest.fn(), cls = jest.fn()): ExecutionContext {
+function createMockContext(
+  user: { role: string },
+  handler = jest.fn(),
+  cls = jest.fn(),
+): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => cls,
