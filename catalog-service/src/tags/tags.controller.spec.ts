@@ -4,7 +4,11 @@ import { TagsService } from './tags.service';
 
 describe('TagsController', () => {
   let controller: TagsController;
-  let service: jest.Mocked<Partial<TagsService>>;
+  let service: {
+    findAll: jest.Mock;
+    create: jest.Mock;
+    remove: jest.Mock;
+  };
 
   beforeEach(async () => {
     service = {

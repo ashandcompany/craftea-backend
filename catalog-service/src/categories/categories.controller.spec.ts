@@ -4,7 +4,13 @@ import { CategoriesService } from './categories.service';
 
 describe('CategoriesController', () => {
   let controller: CategoriesController;
-  let service: jest.Mocked<Partial<CategoriesService>>;
+  let service: {
+    findAll: jest.Mock;
+    findById: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+    remove: jest.Mock;
+  };
 
   beforeEach(async () => {
     service = {

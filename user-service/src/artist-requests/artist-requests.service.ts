@@ -165,7 +165,7 @@ export class ArtistRequestsService {
     requestId: number,
     adminId: number,
     action: 'approve' | 'reject',
-  ) {
+  ): Promise<{ id: number; status: ArtistRequestStatus }> {
     const artistRequest = await this.requestsRepo.findOne({
       where: { id: requestId },
     });

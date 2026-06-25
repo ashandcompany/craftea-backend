@@ -147,7 +147,7 @@ describe('UsersController', () => {
 
   describe('changeRole', () => {
     it('should change user role', async () => {
-      const expected = { id: 1, role: 'artist' };
+      const expected = { id: 1, role: UserRole.ARTIST };
       service.changeRole.mockResolvedValue(expected);
 
       const result = await controller.changeRole(

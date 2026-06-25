@@ -35,6 +35,7 @@ describe('MessagingService', () => {
     content: 'Hello!',
     read_at: null,
     created_at: new Date('2026-01-01'),
+    conversation: mockConv,
   };
 
   beforeEach(async () => {

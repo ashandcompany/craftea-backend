@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { UserRole } from '../users/entities/user.entity';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -17,8 +18,9 @@ describe('AuthController', () => {
     email: 'alice@example.com',
     firstname: 'Alice',
     lastname: 'Dupont',
-    role: 'buyer',
+    role: UserRole.BUYER,
     is_active: true,
+    avatar_url: undefined,
     created_at: new Date(),
     updated_at: new Date(),
   };

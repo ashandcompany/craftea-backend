@@ -5,7 +5,13 @@ import { Cart } from './entities/cart.entity';
 
 describe('CartsController', () => {
   let controller: CartsController;
-  let service: jest.Mocked<Partial<CartsService>>;
+  let service: {
+    findByUser: jest.Mock;
+    addItem: jest.Mock;
+    updateItem: jest.Mock;
+    removeItem: jest.Mock;
+    clear: jest.Mock;
+  };
 
   const mockUser = { id: 10, role: 'user' };
   const mockReq = { user: mockUser } as any;
@@ -29,7 +35,7 @@ describe('CartsController', () => {
 
   describe('findMine', () => {
     it('should return the cart for the authenticated user', async () => {
-      const cart = { id: 1, user_id: 10, items: [] } as Cart;
+      const cart = { id: 1, user_id: 10, items: [] } as unknown as Cart;
       service.findByUser.mockResolvedValue(cart);
 
       const result = await controller.findMine(mockReq);
@@ -42,7 +48,7 @@ describe('CartsController', () => {
   describe('addItem', () => {
     it('should add an item and return updated cart', async () => {
       const dto = { product_id: 42, quantity: 2 };
-      const cart = { id: 1, user_id: 10, items: [] } as Cart;
+      const cart = { id: 1, user_id: 10, items: [] } as unknown as Cart;
       service.addItem.mockResolvedValue(cart);
 
       const result = await controller.addItem(dto, mockReq);
@@ -55,7 +61,7 @@ describe('CartsController', () => {
   describe('updateItem', () => {
     it('should update item quantity', async () => {
       const dto = { quantity: 5 };
-      const cart = { id: 1, user_id: 10, items: [] } as Cart;
+      const cart = { id: 1, user_id: 10, items: [] } as unknown as Cart;
       service.updateItem.mockResolvedValue(cart);
 
       const result = await controller.updateItem(7, dto, mockReq);
@@ -67,7 +73,7 @@ describe('CartsController', () => {
 
   describe('removeItem', () => {
     it('should remove item from cart', async () => {
-      const cart = { id: 1, user_id: 10, items: [] } as Cart;
+      const cart = { id: 1, user_id: 10, items: [] } as unknown as Cart;
       service.removeItem.mockResolvedValue(cart);
 
       const result = await controller.removeItem(7, mockReq);
@@ -79,7 +85,7 @@ describe('CartsController', () => {
 
   describe('clear', () => {
     it('should clear the cart', async () => {
-      const cart = { id: 1, user_id: 10, items: [] } as Cart;
+      const cart = { id: 1, user_id: 10, items: [] } as unknown as Cart;
       service.clear.mockResolvedValue(cart);
 
       const result = await controller.clear(mockReq);

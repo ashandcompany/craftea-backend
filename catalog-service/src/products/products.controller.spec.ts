@@ -4,7 +4,16 @@ import { ProductsService } from './products.service';
 
 describe('ProductsController', () => {
   let controller: ProductsController;
-  let service: jest.Mocked<Partial<ProductsService>>;
+  let service: {
+    findAll: jest.Mock;
+    findById: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+    remove: jest.Mock;
+    updateStock: jest.Mock;
+    decrementStock: jest.Mock;
+    toggleActive: jest.Mock;
+  };
 
   beforeEach(async () => {
     service = {

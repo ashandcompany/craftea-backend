@@ -27,6 +27,8 @@ describe('ArtistsService', () => {
     logo_url: 'logo-123.jpg',
     social_links: 'https://twitter.com/test',
     validated: true,
+    validation_status: 'none',
+    validation_note: null,
     stripe_account_id: null,
     stripe_onboarded: false,
     wallet_balance: 0,
