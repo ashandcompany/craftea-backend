@@ -329,7 +329,10 @@ services:
       DATABASE_URL: ${UMAMI_DATABASE_URL}
       APP_SECRET: ${UMAMI_APP_SECRET}
     ports:
-      - "127.0.0.1:3019:3000"
+      - mode: host
+        protocol: tcp
+        published: 3019
+        target: 3000
     networks:
       - internal
     deploy:
@@ -338,9 +341,10 @@ services:
           - node.role == manager
       resources:
         limits:
-          memory: 256M
+          memory: 512M
       restart_policy:
-        condition: on-failure
+        condition: any
+        delay: 5s
 
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
   db:
