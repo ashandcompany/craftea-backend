@@ -6,6 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import { of } from 'rxjs';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { StripeService } from './stripe.service';
@@ -21,6 +22,7 @@ describe('PaymentsService', () => {
   let paymentsRepo: jest.Mocked<Repository<Payment>>;
   let stripeService: jest.Mocked<StripeService>;
   let walletService: jest.Mocked<WalletService>;
+  let httpService: jest.Mocked<HttpService>;
 
   // Commission : calculateFee(5000) = Math.round(5000*0.05) + 25 = 275
   const mockPayment: Payment = {
@@ -71,6 +73,8 @@ describe('PaymentsService', () => {
           provide: WalletService,
           useValue: {
             credit: jest.fn(),
+            creditPending: jest.fn(),
+            cancelPending: jest.fn(),
             requestPayout: jest.fn(),
           },
         },
@@ -95,6 +99,7 @@ describe('PaymentsService', () => {
     paymentsRepo = module.get(getRepositoryToken(Payment)) as jest.Mocked<Repository<Payment>>;
     stripeService = module.get(StripeService) as jest.Mocked<StripeService>;
     walletService = module.get(WalletService) as jest.Mocked<WalletService>;
+    httpService = module.get(HttpService) as jest.Mocked<HttpService>;
   });
 
   describe('createIntent', () => {
@@ -443,6 +448,362 @@ describe('PaymentsService', () => {
         order: { created_at: 'DESC' },
       });
       expect(result).toEqual([mockPayment]);
+    });
+  });
+
+  describe('createIntent — resolveArtistStripeAccount via HTTP', () => {
+    it('should resolve artist stripe account from order when not provided in dto', async () => {
+      const orderData = { items: [{ shop_id: 42 }] };
+      const shopData = { artist_id: 7 };
+      const artistData = { stripe_account_id: 'acct_resolved', stripe_onboarded: true };
+
+      httpService.get
+        .mockReturnValueOnce(of({ data: orderData } as any))
+        .mockReturnValueOnce(of({ data: shopData } as any))
+        .mockReturnValueOnce(of({ data: artistData } as any));
+
+      stripeService.createPaymentIntent.mockResolvedValue({
+        id: 'pi_resolved',
+        client_secret: 'sec',
+      } as any);
+      paymentsRepo.create.mockReturnValue(mockPayment);
+      paymentsRepo.save.mockResolvedValue(mockPayment);
+
+      await service.createIntent({ amount: 50, order_id: 10 }, 100);
+
+      expect(stripeService.createPaymentIntent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transferDestination: 'acct_resolved',
+        }),
+      );
+    });
+
+    it('should proceed without destination charge when resolveArtistStripeAccount returns null', async () => {
+      httpService.get.mockReturnValueOnce(of({ data: { items: [] } } as any));
+
+      stripeService.createPaymentIntent.mockResolvedValue({
+        id: 'pi_no_dest',
+        client_secret: 'sec2',
+      } as any);
+      paymentsRepo.create.mockReturnValue(mockPayment);
+      paymentsRepo.save.mockResolvedValue(mockPayment);
+
+      await service.createIntent({ amount: 50, order_id: 10 }, 100);
+
+      const call = stripeService.createPaymentIntent.mock.calls[0][0];
+      expect(call).not.toHaveProperty('transferDestination');
+    });
+
+    it('should return null when resolveArtistStripeAccount HTTP call throws', async () => {
+      httpService.get.mockReturnValueOnce(of({ data: null } as any));
+
+      stripeService.createPaymentIntent.mockResolvedValue({
+        id: 'pi_err',
+        client_secret: 'sec3',
+      } as any);
+      paymentsRepo.create.mockReturnValue(mockPayment);
+      paymentsRepo.save.mockResolvedValue(mockPayment);
+
+      await service.createIntent({ amount: 50, order_id: 10 }, 100);
+
+      expect(stripeService.createPaymentIntent).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleOrderCompleted — edge cases', () => {
+    it('should return skipped when no payment found for order', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.handleOrderCompleted({ orderId: 99, artistId: 1, amount: 100 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should return payment immediately if already wallet_credited', async () => {
+      const alreadyCredited = { ...mockPayment, status: PaymentStatus.COMPLETED, wallet_credited: true };
+      paymentsRepo.findOne.mockResolvedValue(alreadyCredited);
+
+      const result = await service.handleOrderCompleted({ orderId: 10, artistId: 5, amount: 5000 });
+
+      expect(result).toEqual(alreadyCredited);
+      expect(walletService.credit).not.toHaveBeenCalled();
+    });
+
+    it('should skip when artistAmountCents is zero', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+        wallet_credited: false,
+        artist_amount_cents: 0,
+      });
+
+      const result = await service.handleOrderCompleted({ orderId: 10, artistId: 5, amount: 0 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should skip when no artist split found and no artistId', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+        wallet_credited: false,
+      });
+
+      const result = await service.handleOrderCompleted({
+        orderId: 10,
+        artistId: undefined as any,
+        amount: 5000,
+        splits: [],
+      });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should credit single artist when only one split provided', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+        wallet_credited: false,
+      });
+      walletService.credit.mockResolvedValue({} as any);
+      paymentsRepo.save.mockImplementation(async (p: any) => p);
+
+      await service.handleOrderCompleted({
+        orderId: 10,
+        artistId: 5,
+        amount: 5000,
+        splits: [{ artistId: 5, grossAmount: 5000 }],
+      });
+
+      expect(walletService.credit).toHaveBeenCalledWith(5, 4725, 10);
+    });
+  });
+
+  describe('handleOrderConfirmed', () => {
+    it('should creditPending for each artist split', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+      });
+      walletService.creditPending.mockResolvedValue({} as any);
+
+      const result = await service.handleOrderConfirmed({
+        orderId: 10,
+        artistId: 5,
+        amount: 5000,
+        splits: [
+          { artistId: 5, grossAmount: 3000 },
+          { artistId: 7, grossAmount: 2000 },
+        ],
+      });
+
+      expect(walletService.creditPending).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should return skipped when payment not found', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.handleOrderConfirmed({ orderId: 99, artistId: 1, amount: 100 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should return skipped when payment is not completed', async () => {
+      paymentsRepo.findOne.mockResolvedValue({ ...mockPayment, status: PaymentStatus.PENDING });
+
+      const result = await service.handleOrderConfirmed({ orderId: 10, artistId: 5, amount: 5000 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should return skipped when artistAmountCents is zero', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+        artist_amount_cents: 0,
+      });
+
+      const result = await service.handleOrderConfirmed({ orderId: 10, artistId: 5, amount: 0 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should return skipped when no credits computed', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+      });
+
+      const result = await service.handleOrderConfirmed({
+        orderId: 10,
+        artistId: undefined as any,
+        amount: 5000,
+        splits: [],
+      });
+
+      expect(result).toEqual({ skipped: true });
+    });
+  });
+
+  describe('handleOrderCancelled', () => {
+    it('should cancelPending for each artist split', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+      });
+      walletService.cancelPending.mockResolvedValue({} as any);
+
+      const result = await service.handleOrderCancelled({
+        orderId: 10,
+        artistId: 5,
+        amount: 5000,
+      });
+
+      expect(walletService.cancelPending).toHaveBeenCalledWith(5, 4725, 10);
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should return skipped when payment not found', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.handleOrderCancelled({ orderId: 99, artistId: 1, amount: 100 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+
+    it('should return skipped when artistAmountCents is zero', async () => {
+      paymentsRepo.findOne.mockResolvedValue({
+        ...mockPayment,
+        artist_amount_cents: 0,
+      });
+
+      const result = await service.handleOrderCancelled({ orderId: 10, artistId: 5, amount: 0 });
+
+      expect(result).toEqual({ skipped: true });
+    });
+  });
+
+  describe('confirmPaymentFromWebhook — auto-confirm order', () => {
+    it('should auto-confirm order via HTTP when payment succeeds with order_id', async () => {
+      paymentsRepo.findOne.mockResolvedValue({ ...mockPayment });
+      httpService.patch.mockReturnValue(of({ data: {} } as any));
+      paymentsRepo.save.mockImplementation(async (p: any) => p);
+
+      const result = await service.confirmPaymentFromWebhook({
+        id: 'pi_test_123',
+        status: 'succeeded',
+        latest_charge: null,
+      } as any);
+
+      expect(httpService.patch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/orders/internal/10/status'),
+        { status: 'confirmed' },
+        expect.any(Object),
+      );
+      expect(result?.status).toBe(PaymentStatus.COMPLETED);
+    });
+  });
+
+  describe('handleChargeRefundedFromWebhook', () => {
+    it('should return early when charge has no payment_intent', async () => {
+      await service.handleChargeRefundedFromWebhook({ id: 'ch_no_pi' } as any);
+
+      expect(paymentsRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should handle string payment_intent id', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      await service.handleChargeRefundedFromWebhook({
+        id: 'ch_1',
+        payment_intent: 'pi_test_123',
+      } as any);
+
+      expect(paymentsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { stripe_payment_intent_id: 'pi_test_123' } }),
+      );
+    });
+
+    it('should return early when no local payment found for PI', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      await service.handleChargeRefundedFromWebhook({
+        id: 'ch_2',
+        payment_intent: 'pi_unknown',
+      } as any);
+
+      expect(paymentsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should mark payment as REFUNDED and not touch already-refunded payment', async () => {
+      const alreadyRefunded = { ...mockPayment, status: PaymentStatus.REFUNDED, wallet_credited: false };
+      paymentsRepo.findOne.mockResolvedValue(alreadyRefunded);
+
+      await service.handleChargeRefundedFromWebhook({
+        id: 'ch_3',
+        payment_intent: 'pi_test_123',
+      } as any);
+
+      expect(paymentsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should mark payment as REFUNDED when status is COMPLETED', async () => {
+      const completedPayment = {
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+        wallet_credited: false,
+      };
+      paymentsRepo.findOne.mockResolvedValue(completedPayment);
+      paymentsRepo.save.mockImplementation(async (p: any) => p);
+
+      await service.handleChargeRefundedFromWebhook({
+        id: 'ch_4',
+        payment_intent: 'pi_test_123',
+      } as any);
+
+      expect(paymentsRepo.save).toHaveBeenCalled();
+    });
+
+    it('should reverse wallet credits when wallet_credited is true and artistId resolves', async () => {
+      const creditedPayment = {
+        ...mockPayment,
+        status: PaymentStatus.COMPLETED,
+        wallet_credited: true,
+        artist_amount_cents: 4725,
+        order_id: 10,
+        artist_stripe_account_id: undefined,
+      };
+      paymentsRepo.findOne.mockResolvedValue(creditedPayment);
+      walletService.cancelPending.mockResolvedValue({} as any);
+
+      const orderData = { items: [{ shop_id: 1 }] };
+      const shopData = { artist_id: 5 };
+      httpService.get
+        .mockReturnValueOnce(of({ data: orderData } as any))
+        .mockReturnValueOnce(of({ data: shopData } as any));
+      paymentsRepo.save.mockImplementation(async (p: any) => p);
+
+      await service.handleChargeRefundedFromWebhook({
+        id: 'ch_5',
+        payment_intent: 'pi_test_123',
+      } as any);
+
+      expect(walletService.cancelPending).toHaveBeenCalledWith(5, 4725, 10);
+      expect(creditedPayment.wallet_credited).toBe(false);
+    });
+
+    it('should handle payment_intent as an object with id', async () => {
+      paymentsRepo.findOne.mockResolvedValue(null);
+
+      await service.handleChargeRefundedFromWebhook({
+        id: 'ch_6',
+        payment_intent: { id: 'pi_obj_123' },
+      } as any);
+
+      expect(paymentsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { stripe_payment_intent_id: 'pi_obj_123' } }),
+      );
     });
   });
 });

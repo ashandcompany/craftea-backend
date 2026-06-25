@@ -183,6 +183,12 @@ describe('WalletService', () => {
       await expect(service.getMyWallet(undefined)).rejects.toThrow(ForbiddenException);
     });
 
+    it('should throw BadRequestException when artist profile has no id', async () => {
+      httpService.get.mockReturnValue(of({ data: {} } as any));
+
+      await expect(service.getMyWallet('Bearer token')).rejects.toThrow(BadRequestException);
+    });
+
     it('should return wallet snapshot with Stripe balance for an onboarded artist', async () => {
       httpService.get.mockReturnValue(of({ data: mockArtistProfile } as any));
       stripeService.retrieveConnectedBalance.mockResolvedValue({ available: 4500, pending: 800 });
