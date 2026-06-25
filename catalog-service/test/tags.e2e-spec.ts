@@ -34,7 +34,10 @@ describe('TagsController (integration)', () => {
           synchronize: true,
         }),
         PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.register({ secret: JWT_SECRET, signOptions: { expiresIn: '1h' } }),
+        JwtModule.register({
+          secret: JWT_SECRET,
+          signOptions: { expiresIn: '1h' },
+        }),
         TagsModule,
       ],
       providers: [JwtStrategy],
@@ -42,7 +45,9 @@ describe('TagsController (integration)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     jwtService = moduleFixture.get<JwtService>(JwtService);

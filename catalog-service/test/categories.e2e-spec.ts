@@ -44,7 +44,10 @@ describe('CategoriesController (integration)', () => {
         }),
         TypeOrmModule.forFeature([Category]),
         PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.register({ secret: JWT_SECRET, signOptions: { expiresIn: '1h' } }),
+        JwtModule.register({
+          secret: JWT_SECRET,
+          signOptions: { expiresIn: '1h' },
+        }),
       ],
       controllers: [CategoriesController],
       providers: [
@@ -56,7 +59,9 @@ describe('CategoriesController (integration)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     jwtService = moduleFixture.get<JwtService>(JwtService);
@@ -129,9 +134,7 @@ describe('CategoriesController (integration)', () => {
   });
 
   it('GET /api/categories/9999 — should 404', () => {
-    return request(app.getHttpServer())
-      .get('/api/categories/9999')
-      .expect(404);
+    return request(app.getHttpServer()).get('/api/categories/9999').expect(404);
   });
 
   // ---------- PUT /api/categories/:id ----------

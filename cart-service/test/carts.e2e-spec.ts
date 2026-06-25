@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { CartsModule } from '../src/carts/carts.module';
 import { Cart } from '../src/carts/entities/cart.entity';
 import { CartItem } from '../src/carts/entities/cart-item.entity';
@@ -34,7 +33,10 @@ describe('CartsController (integration)', () => {
         }),
         TypeOrmModule.forFeature([Cart, CartItem]),
         PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.register({ secret: JWT_SECRET, signOptions: { expiresIn: '1h' } }),
+        JwtModule.register({
+          secret: JWT_SECRET,
+          signOptions: { expiresIn: '1h' },
+        }),
         CartsModule,
       ],
       providers: [JwtStrategy],
@@ -42,7 +44,9 @@ describe('CartsController (integration)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     jwtService = moduleFixture.get<JwtService>(JwtService);

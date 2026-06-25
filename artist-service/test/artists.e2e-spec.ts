@@ -56,10 +56,7 @@ describe('ArtistsController (e2e)', () => {
     }) as any;
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
-        AuthModule,
-      ],
+      imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule],
       controllers: [ArtistsController],
       providers: [
         ArtistsService,
@@ -76,7 +73,9 @@ describe('ArtistsController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     jwtService = moduleFixture.get(JwtService);
@@ -140,15 +139,11 @@ describe('ArtistsController (e2e)', () => {
     it('should return 404 for non-existing artist', async () => {
       mockArtistsRepository.findOne.mockResolvedValue(null);
 
-      await request(app.getHttpServer())
-        .get('/api/artists/999')
-        .expect(404);
+      await request(app.getHttpServer()).get('/api/artists/999').expect(404);
     });
 
     it('should return 400 for invalid ID', async () => {
-      await request(app.getHttpServer())
-        .get('/api/artists/abc')
-        .expect(400);
+      await request(app.getHttpServer()).get('/api/artists/abc').expect(400);
     });
   });
 
@@ -301,7 +296,9 @@ describe('ArtistsController (e2e)', () => {
         .attach('banner', Buffer.from('fake-image'), 'new-banner.jpg')
         .expect(200);
 
-      expect(mockMinioService.deleteFile).toHaveBeenCalledWith('banner-123.jpg');
+      expect(mockMinioService.deleteFile).toHaveBeenCalledWith(
+        'banner-123.jpg',
+      );
       expect(mockMinioService.uploadFile).toHaveBeenCalled();
       expect(res.body.banner_url).toBe('uploaded-file.jpg');
     });
@@ -361,7 +358,10 @@ describe('ArtistsController (e2e)', () => {
     it('should toggle validation status', async () => {
       const profile = { ...mockArtistProfile, validated: true };
       mockArtistsRepository.findOne.mockResolvedValue(profile);
-      mockArtistsRepository.save.mockResolvedValue({ ...profile, validated: false });
+      mockArtistsRepository.save.mockResolvedValue({
+        ...profile,
+        validated: false,
+      });
 
       const token = signToken({ id: 1, role: 'admin' });
 

@@ -53,7 +53,10 @@ describe('ProductsController (integration)', () => {
         }),
         TypeOrmModule.forFeature([Product, ProductImage, Tag]),
         PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.register({ secret: JWT_SECRET, signOptions: { expiresIn: '1h' } }),
+        JwtModule.register({
+          secret: JWT_SECRET,
+          signOptions: { expiresIn: '1h' },
+        }),
       ],
       controllers: [ProductsController],
       providers: [
@@ -67,7 +70,9 @@ describe('ProductsController (integration)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     jwtService = moduleFixture.get<JwtService>(JwtService);
@@ -135,9 +140,7 @@ describe('ProductsController (integration)', () => {
   });
 
   it('GET /api/products/9999 — should 404', () => {
-    return request(app.getHttpServer())
-      .get('/api/products/9999')
-      .expect(404);
+    return request(app.getHttpServer()).get('/api/products/9999').expect(404);
   });
 
   // ---------- PATCH /api/products/:id/stock ----------

@@ -6,7 +6,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ShopsController } from '../src/shops/shops.controller';
 import { ShopsService } from '../src/shops/shops.service';
 import { Shop } from '../src/shops/entities/shop.entity';
-import { ShopShippingProfile, ShippingZone } from '../src/shops/entities/shop-shipping-profile.entity';
+import {
+  ShopShippingProfile,
+  ShippingZone,
+} from '../src/shops/entities/shop-shipping-profile.entity';
 import { ShopShippingMethod } from '../src/shops/entities/shop-shipping-method.entity';
 import { ArtistProfile } from '../src/artists/entities/artist-profile.entity';
 import { MinioService } from '../src/minio/minio.service';
@@ -112,10 +115,7 @@ describe('ShopsController (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
-        AuthModule,
-      ],
+      imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule],
       controllers: [ShopsController],
       providers: [
         ShopsService,
@@ -144,7 +144,9 @@ describe('ShopsController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     jwtService = moduleFixture.get(JwtService);
@@ -175,15 +177,11 @@ describe('ShopsController (e2e)', () => {
     it('should return 404 for non-existing shop', async () => {
       mockShopsRepository.findOne.mockResolvedValue(null);
 
-      await request(app.getHttpServer())
-        .get('/api/shops/999')
-        .expect(404);
+      await request(app.getHttpServer()).get('/api/shops/999').expect(404);
     });
 
     it('should return 400 for invalid ID', async () => {
-      await request(app.getHttpServer())
-        .get('/api/shops/abc')
-        .expect(400);
+      await request(app.getHttpServer()).get('/api/shops/abc').expect(400);
     });
   });
 
@@ -264,7 +262,11 @@ describe('ShopsController (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/shops')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'New Shop', description: 'Great place', location: 'Lyon' })
+        .send({
+          name: 'New Shop',
+          description: 'Great place',
+          location: 'Lyon',
+        })
         .expect(201);
 
       expect(res.body.name).toBe('New Shop');
@@ -312,7 +314,10 @@ describe('ShopsController (e2e)', () => {
       const existing = { ...mockShop };
       mockArtistsRepository.findOne.mockResolvedValue(mockArtistProfile);
       mockShopsRepository.findOne.mockResolvedValue(existing);
-      mockShopsRepository.save.mockResolvedValue({ ...existing, name: 'Updated Shop' });
+      mockShopsRepository.save.mockResolvedValue({
+        ...existing,
+        name: 'Updated Shop',
+      });
       const token = signToken({ id: 100, role: 'artist' });
 
       const res = await request(app.getHttpServer())
@@ -364,7 +369,9 @@ describe('ShopsController (e2e)', () => {
         .attach('banner', Buffer.from('new-banner'), 'new-banner.jpg')
         .expect(200);
 
-      expect(mockMinioService.deleteFile).toHaveBeenCalledWith('shop-banner.jpg');
+      expect(mockMinioService.deleteFile).toHaveBeenCalledWith(
+        'shop-banner.jpg',
+      );
       expect(mockMinioService.uploadFile).toHaveBeenCalled();
       expect(res.body.banner_url).toBe('uploaded-file.jpg');
     });
@@ -372,9 +379,7 @@ describe('ShopsController (e2e)', () => {
 
   describe('DELETE /api/shops/:id', () => {
     it('should return 401 without token', async () => {
-      await request(app.getHttpServer())
-        .delete('/api/shops/10')
-        .expect(401);
+      await request(app.getHttpServer()).delete('/api/shops/10').expect(401);
     });
 
     it('should delete a shop', async () => {
@@ -389,7 +394,9 @@ describe('ShopsController (e2e)', () => {
         .expect(200);
 
       expect(res.body).toEqual({ message: 'Boutique supprimée' });
-      expect(mockMinioService.deleteFile).toHaveBeenCalledWith('shop-banner.jpg');
+      expect(mockMinioService.deleteFile).toHaveBeenCalledWith(
+        'shop-banner.jpg',
+      );
       expect(mockMinioService.deleteFile).toHaveBeenCalledWith('shop-logo.jpg');
     });
 
@@ -475,9 +482,7 @@ describe('ShopsController (e2e)', () => {
         .put('/api/shops/10/shipping')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          profiles: [
-            { zone: 'france', base_fee: 5, additional_item_fee: 1 },
-          ],
+          profiles: [{ zone: 'france', base_fee: 5, additional_item_fee: 1 }],
         })
         .expect(404);
     });
@@ -582,9 +587,7 @@ describe('ShopsController (e2e)', () => {
         .put('/api/shops/10/shipping-methods')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          methods: [
-            { name: 'Test', zones: ['france'] },
-          ],
+          methods: [{ name: 'Test', zones: ['france'] }],
         })
         .expect(404);
     });

@@ -16,7 +16,9 @@ describe('User Service — intégration (Supertest)', () => {
 
     app = module.createNestApplication();
     app.use(cookieParser());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.setGlobalPrefix('api');
     await app.init();
   }, 30000);
@@ -110,7 +112,7 @@ describe('User Service — intégration (Supertest)', () => {
         .send({ firstname: 'Login', lastname: 'Test', email, password });
     });
 
-    it('connecte l\'utilisateur et pose les cookies JWT', async () => {
+    it("connecte l'utilisateur et pose les cookies JWT", async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
         .send({ email, password })
@@ -123,7 +125,9 @@ describe('User Service — intégration (Supertest)', () => {
       const cookies: string[] = Array.isArray(res.headers['set-cookie'])
         ? res.headers['set-cookie']
         : [res.headers['set-cookie']];
-      expect(cookies.some((c: string) => c.startsWith('accessToken='))).toBe(true);
+      expect(cookies.some((c: string) => c.startsWith('accessToken='))).toBe(
+        true,
+      );
     });
 
     it('renvoie 401 avec un mauvais mot de passe', () => {
@@ -145,9 +149,7 @@ describe('User Service — intégration (Supertest)', () => {
 
   describe('GET /api/users/:id (protégé)', () => {
     it('renvoie 401 sans token', () => {
-      return request(app.getHttpServer())
-        .get('/api/users/1')
-        .expect(401);
+      return request(app.getHttpServer()).get('/api/users/1').expect(401);
     });
 
     it('retourne le profil utilisateur avec un token valide', async () => {
@@ -173,7 +175,7 @@ describe('User Service — intégration (Supertest)', () => {
       expect(profileRes.body.password).toBeUndefined();
     });
 
-    it('renvoie 403 si un utilisateur tente d\'accéder au profil d\'un autre', async () => {
+    it("renvoie 403 si un utilisateur tente d'accéder au profil d'un autre", async () => {
       // Créer deux comptes distincts
       const emailA = `int-userA-${Date.now()}@craftea-ci.local`;
       const emailB = `int-userB-${Date.now() + 1}@craftea-ci.local`;
@@ -181,12 +183,22 @@ describe('User Service — intégration (Supertest)', () => {
 
       const resA = await request(app.getHttpServer())
         .post('/api/auth/register')
-        .send({ firstname: 'UserA', lastname: 'Test', email: emailA, password: pw })
+        .send({
+          firstname: 'UserA',
+          lastname: 'Test',
+          email: emailA,
+          password: pw,
+        })
         .expect(201);
 
       const resB = await request(app.getHttpServer())
         .post('/api/auth/register')
-        .send({ firstname: 'UserB', lastname: 'Test', email: emailB, password: pw })
+        .send({
+          firstname: 'UserB',
+          lastname: 'Test',
+          email: emailB,
+          password: pw,
+        })
         .expect(201);
 
       const userAId: number = resA.body.user.id;
@@ -206,9 +218,7 @@ describe('User Service — intégration (Supertest)', () => {
 
   describe('GET /api/users (admin uniquement)', () => {
     it('renvoie 401 sans token', () => {
-      return request(app.getHttpServer())
-        .get('/api/users')
-        .expect(401);
+      return request(app.getHttpServer()).get('/api/users').expect(401);
     });
 
     it('renvoie 403 pour un utilisateur non-admin', async () => {
@@ -216,7 +226,12 @@ describe('User Service — intégration (Supertest)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/register')
-        .send({ firstname: 'NonAdmin', lastname: 'Test', email, password: 'TestPassword123!' })
+        .send({
+          firstname: 'NonAdmin',
+          lastname: 'Test',
+          email,
+          password: 'TestPassword123!',
+        })
         .expect(201);
 
       const cookies: string[] = Array.isArray(res.headers['set-cookie'])
