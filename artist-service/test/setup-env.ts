@@ -1,0 +1,15 @@
+process.env.NODE_ENV ??= 'test';
+process.env.DB_HOST ??= 'localhost';
+process.env.DB_PORT ??= '5433';
+process.env.DB_USER ??= 'craftea';
+process.env.DB_PASS ??= 'craftea';
+process.env.DB_NAME ??= 'craftea_artists';
+process.env.JWT_SECRET ??= 'ci-test-jwt-secret-32chars-min!!';
+process.env.JWT_REFRESH_SECRET ??= 'ci-test-refresh-secret-32chars!';
+process.env.MINIO_ENDPOINT ??= 'localhost';
+process.env.MINIO_PORT ??= '9001';
+process.env.MINIO_ACCESS_KEY ??= 'minioadmin';
+process.env.MINIO_SECRET_KEY ??= 'minioadmin';
+process.env.MINIO_BUCKET ??= 'craftea-uploads';
+process.env.INTERNAL_SERVICE_TOKEN ??= 'ci-internal-token';
+process.env.STRIPE_SECRET_KEY ??= 'sk_test_dummy';

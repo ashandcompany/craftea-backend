@@ -1,0 +1,11 @@
+process.env.NODE_ENV ??= 'test';
+process.env.DB_HOST ??= 'localhost';
+process.env.DB_PORT ??= '5433';
+process.env.DB_USER ??= 'craftea';
+process.env.DB_PASS ??= 'craftea';
+process.env.DB_NAME ??= 'craftea_carts';
+process.env.REDIS_HOST ??= 'localhost';
+process.env.REDIS_PORT ??= '6380';
+process.env.RABBITMQ_URL ??= 'amqp://craftea:craftea@localhost:5673';
+process.env.JWT_SECRET ??= 'ci-test-jwt-secret-32chars-min!!';
+process.env.INTERNAL_SERVICE_TOKEN ??= 'ci-internal-token';
