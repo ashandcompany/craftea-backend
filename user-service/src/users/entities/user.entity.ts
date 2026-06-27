@@ -38,7 +38,7 @@ export class User {
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   avatar_url?: string | null;
 
   @Column({ nullable: true, type: 'varchar', select: false })
