@@ -151,19 +151,18 @@ describe('OrdersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should rollback stock and throw if stock decrement fails', async () => {
+    it('should create order without decrementing stock (deferred to confirmation)', async () => {
       httpService.get.mockReturnValue(
         of(axiosResponse({ id: 10, shop_id: 5, shipping_fee: null })),
       );
-      httpService.patch.mockReturnValue(
-        throwError(() => ({
-          response: { data: { message: 'Stock insuffisant' } },
-        })),
-      );
+      itemsRepo.create.mockReturnValue(mockItems[0]);
+      ordersRepo.create.mockReturnValue(mockOrder);
+      ordersRepo.save.mockResolvedValue(mockOrder);
 
-      await expect(service.create(dto, 100)).rejects.toThrow(
-        BadRequestException,
-      );
+      const result = await service.create(dto, 100);
+
+      expect(result).toEqual(mockOrder);
+      expect(httpService.patch).not.toHaveBeenCalled();
     });
 
     it('should use product shipping_fee override when present', async () => {
@@ -294,7 +293,7 @@ describe('OrdersService', () => {
       );
     });
 
-    it('should rollback partially decremented stock on failure', async () => {
+    it('should create multi-item order without decrementing stock (deferred to confirmation)', async () => {
       const dtoMulti = {
         items: [
           { product_id: 10, quantity: 1, price: 25 },
@@ -314,20 +313,14 @@ describe('OrdersService', () => {
           }),
         );
       });
+      itemsRepo.create.mockReturnValue(mockItems[0]);
+      ordersRepo.create.mockReturnValue(mockOrder);
+      ordersRepo.save.mockResolvedValue(mockOrder);
 
-      let patchCount = 0;
-      httpService.patch.mockImplementation(() => {
-        patchCount++;
-        if (patchCount === 1) return of(axiosResponse({ success: true }));
-        // Second decrement fails → rollback triggered
-        return throwError(() => ({
-          response: { data: { message: 'Erreur stock produit 11' } },
-        }));
-      });
+      const result = await service.create(dtoMulti, 100);
 
-      await expect(service.create(dtoMulti, 100)).rejects.toThrow(
-        BadRequestException,
-      );
+      expect(result).toEqual(mockOrder);
+      expect(httpService.patch).not.toHaveBeenCalled();
     });
 
     it('should create order without shipping_zone (defaults to france)', async () => {
@@ -367,11 +360,8 @@ describe('OrdersService', () => {
       expect(result).toBeDefined();
     });
 
-    it('should throw generic BadRequestException if error has no response data', async () => {
+    it('should throw generic BadRequestException if product fetch error has no response data', async () => {
       httpService.get.mockReturnValue(
-        of(axiosResponse({ id: 10, shop_id: 5, shipping_fee: null })),
-      );
-      httpService.patch.mockReturnValue(
         throwError(() => new Error('Network error')),
       );
 

@@ -86,7 +86,7 @@ describe('StripeService', () => {
         {
           amount: 5000,
           currency: 'eur',
-          automatic_payment_methods: { enabled: true },
+          payment_method_types: ['card'],
           metadata: { user_id: '1' },
         },
         { idempotencyKey: 'key-123' },
