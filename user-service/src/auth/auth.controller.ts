@@ -99,7 +99,8 @@ export class AuthController {
     @Request() req: ExpressRequest,
     @Response({ passthrough: true }) res: ExpressResponse,
   ) {
-    const refreshToken = (req as any).cookies?.refreshToken as string | undefined;
+    const refreshToken = (req as any).cookies?.refreshToken as
+      string | undefined;
     if (!refreshToken)
       throw new UnauthorizedException('Refresh token manquant');
     const result = await this.authService.refresh(refreshToken);
