@@ -33,7 +33,7 @@
     "class-validator": "^0.14.1",
     "ioredis": "^5.9.3",
     "minio": "^8.0.5",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.2.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.13.1",
@@ -94,5 +94,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "2.2.0"
+    }
   }
 }
