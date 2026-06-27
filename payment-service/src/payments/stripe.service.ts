@@ -76,7 +76,7 @@ export class StripeService {
     const createParams: Stripe.PaymentIntentCreateParams = {
       amount: params.amount,
       currency: params.currency.toLowerCase(),
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: ['card'],
       metadata: params.metadata ?? {},
     };
 

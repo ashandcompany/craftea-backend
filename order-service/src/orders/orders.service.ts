@@ -73,13 +73,11 @@ export class OrdersService {
 
     const shippingZone = dto.shipping_zone || 'france';
 
-    // Vérifier et décrémenter le stock pour chaque article, récupérer le shop_id
-    const decremented: { product_id: number; quantity: number }[] = [];
+    // Récupérer les métadonnées produit (shop_id, frais de port) sans toucher au stock
     const productShopMap = new Map<number, number>();
     const productShippingFeeMap = new Map<number, number | null>();
     try {
       for (const item of dto.items) {
-        // Récupérer le produit pour obtenir le shop_id et le shipping_fee
         const { data: product } = await firstValueFrom(
           this.httpService.get(
             `${this.catalogUrl}/api/products/${item.product_id}`,
@@ -92,36 +90,11 @@ export class OrdersService {
           item.product_id,
           product?.shipping_fee != null ? Number(product.shipping_fee) : null,
         );
-
-        await firstValueFrom(
-          this.httpService.patch(
-            `${this.catalogUrl}/api/products/${item.product_id}/decrement-stock`,
-            { quantity: item.quantity },
-          ),
-        );
-        decremented.push({
-          product_id: item.product_id,
-          quantity: item.quantity,
-        });
       }
     } catch (error: any) {
-      // Rollback : restaurer le stock des produits déjà décrémentés
-      for (const d of decremented) {
-        try {
-          await firstValueFrom(
-            this.httpService.patch(
-              `${this.catalogUrl}/api/products/${d.product_id}/decrement-stock`,
-              { quantity: -d.quantity },
-            ),
-          );
-        } catch {
-          // best-effort rollback
-        }
-      }
-
       const msg =
         error?.response?.data?.message ||
-        'Erreur lors de la vérification du stock';
+        'Erreur lors de la récupération du produit';
       throw new BadRequestException(msg);
     }
 
@@ -173,7 +146,7 @@ export class OrdersService {
       ),
     });
 
-    return this.ordersRepo.save(order);
+    return await this.ordersRepo.save(order);
   }
 
   async findByUser(userId: number): Promise<Order[]> {
@@ -214,6 +187,7 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Commande introuvable');
 
     // Vérifier si l'utilisateur est le propriétaire, un admin, ou l'artiste de la boutique
+    const isInternal = (currentUser as any).role === 'internal';
     const isOwner = order.user_id === currentUser.id;
     const isAdmin = currentUser.role === 'admin';
     const isArtist = currentUser.role === 'artist';
@@ -223,7 +197,7 @@ export class OrdersService {
       isShopOwner = await this.isArtistOwnerOfOrder(currentUser.id, order);
     }
 
-    if (!isAdmin && !isOwner && !isShopOwner) {
+    if (!isInternal && !isAdmin && !isOwner && !isShopOwner) {
       throw new ForbiddenException('Accès interdit');
     }
 
@@ -237,6 +211,7 @@ export class OrdersService {
 
     if (
       artistOrAdminStatuses.includes(dto.status) &&
+      !isInternal &&
       !isAdmin &&
       !isShopOwner
     ) {
@@ -248,6 +223,7 @@ export class OrdersService {
     // Le client ne peut qu'annuler
     if (
       isOwner &&
+      !isInternal &&
       !isAdmin &&
       !isShopOwner &&
       dto.status !== OrderStatus.CANCELLED
@@ -274,6 +250,7 @@ export class OrdersService {
     }
 
     if (!wasConfirmed && dto.status === OrderStatus.CONFIRMED) {
+      await this.decrementStockForOrder(order);
       await this.emitOrderConfirmed(saved);
     }
 
@@ -533,22 +510,48 @@ export class OrdersService {
       .filter((s) => s.grossAmount > 0);
   }
 
-  private async handleOrderCancellation(order: Order): Promise<void> {
-    // 1. Restaurer le stock pour chaque article
+  private async decrementStockForOrder(order: Order): Promise<void> {
     for (const item of order.items || []) {
       try {
         await firstValueFrom(
           this.httpService.patch(
             `${this.catalogUrl}/api/products/${item.product_id}/decrement-stock`,
-            { quantity: -item.quantity }, // Négatif pour augmenter le stock
+            { quantity: item.quantity },
           ),
         );
       } catch (error) {
-        // Log l'erreur mais continue (best-effort)
-        console.error(
-          `Failed to refund stock for product ${item.product_id}:`,
-          error,
+        this.logger.error(
+          `Failed to decrement stock for product ${item.product_id} on order ${order.id}: ${error}`,
         );
+      }
+    }
+  }
+
+  private async handleOrderCancellation(order: Order): Promise<void> {
+    // 1. Restaurer le stock uniquement si la commande avait été confirmée
+    // (le stock n'est décrémenté qu'à la confirmation, pas à la création)
+    const stockWasDecremented = [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.SHIPPED,
+      OrderStatus.DELIVERED,
+    ].includes(order.status);
+
+    if (stockWasDecremented) {
+      for (const item of order.items || []) {
+        try {
+          await firstValueFrom(
+            this.httpService.patch(
+              `${this.catalogUrl}/api/products/${item.product_id}/decrement-stock`,
+              { quantity: -item.quantity },
+            ),
+          );
+        } catch (error) {
+          console.error(
+            `Failed to refund stock for product ${item.product_id}:`,
+            error,
+          );
+        }
       }
     }
 
