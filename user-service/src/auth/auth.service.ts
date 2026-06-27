@@ -211,7 +211,7 @@ export class AuthService {
       );
     }
 
-    const hash = await bcrypt.hash(newPassword, 10);
+    const hash = await bcrypt.hash(newPassword, 12);
     await this.usersRepo.update(user.id, {
       password: hash,
       reset_password_token: null,
@@ -242,7 +242,7 @@ export class AuthService {
       );
     }
 
-    const hash = await bcrypt.hash(newPassword, 10);
+    const hash = await bcrypt.hash(newPassword, 12);
     await this.usersRepo.update(userId, { password: hash });
 
     await this.logsRepo.save(
