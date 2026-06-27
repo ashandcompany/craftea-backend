@@ -112,12 +112,26 @@ export class UsersService {
   }
 
   async selfDeactivate(userId: number): Promise<void> {
-    await this.usersRepo.update(userId, { is_active: false });
+    const user = await this.findById(userId);
+
+    if (user.avatar_url) {
+      await this.minioService.deleteFile(user.avatar_url);
+    }
+
+    await this.usersRepo.update(userId, {
+      email: `deleted_${userId}@craftea.fr`,
+      firstname: 'Utilisateur',
+      lastname: 'supprimé',
+      avatar_url: null,
+      reset_password_token: null,
+      reset_password_expires: null,
+      is_active: false,
+    });
 
     await this.logsRepo.save(
       this.logsRepo.create({
         user_id: userId,
-        action: 'deactivate_user',
+        action: 'delete_account',
         entity: 'user',
         entity_id: userId,
       }),

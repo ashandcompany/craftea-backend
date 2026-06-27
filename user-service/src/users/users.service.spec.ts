@@ -306,21 +306,56 @@ describe('UsersService', () => {
   });
 
   describe('selfDeactivate', () => {
-    it('should set user inactive and log the action', async () => {
+    it('should anonymize PII, delete avatar from MinIO, and log delete_account', async () => {
+      const userWithAvatar = { ...mockUser, avatar_url: 'avatar-key.jpg' };
+      usersRepo.findOne.mockResolvedValue(userWithAvatar);
+      usersRepo.update.mockResolvedValue({ affected: 1 } as any);
+      minioService.deleteFile.mockResolvedValue(undefined);
+      logsRepo.create.mockReturnValue(mockLog);
+      logsRepo.save.mockResolvedValue(mockLog);
+
+      await service.selfDeactivate(1);
+
+      expect(minioService.deleteFile).toHaveBeenCalledWith('avatar-key.jpg');
+      expect(usersRepo.update).toHaveBeenCalledWith(1, {
+        email: 'deleted_1@craftea.fr',
+        firstname: 'Utilisateur',
+        lastname: 'supprimé',
+        avatar_url: null,
+        reset_password_token: null,
+        reset_password_expires: null,
+        is_active: false,
+      });
+      expect(logsRepo.create).toHaveBeenCalledWith({
+        user_id: 1,
+        action: 'delete_account',
+        entity: 'user',
+        entity_id: 1,
+      });
+      expect(logsRepo.save).toHaveBeenCalled();
+    });
+
+    it('should skip MinIO deletion when user has no avatar', async () => {
+      const userWithoutAvatar = { ...mockUser, avatar_url: undefined };
+      usersRepo.findOne.mockResolvedValue(userWithoutAvatar);
       usersRepo.update.mockResolvedValue({ affected: 1 } as any);
       logsRepo.create.mockReturnValue(mockLog);
       logsRepo.save.mockResolvedValue(mockLog);
 
       await service.selfDeactivate(1);
 
-      expect(usersRepo.update).toHaveBeenCalledWith(1, { is_active: false });
-      expect(logsRepo.create).toHaveBeenCalledWith({
-        user_id: 1,
-        action: 'deactivate_user',
-        entity: 'user',
-        entity_id: 1,
-      });
-      expect(logsRepo.save).toHaveBeenCalled();
+      expect(minioService.deleteFile).not.toHaveBeenCalled();
+      expect(usersRepo.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ email: 'deleted_1@craftea.fr', is_active: false }),
+      );
+    });
+
+    it('should throw NotFoundException if user does not exist', async () => {
+      usersRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.selfDeactivate(999)).rejects.toThrow(NotFoundException);
+      expect(usersRepo.update).not.toHaveBeenCalled();
     });
   });
 });
