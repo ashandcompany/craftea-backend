@@ -347,14 +347,19 @@ describe('UsersService', () => {
       expect(minioService.deleteFile).not.toHaveBeenCalled();
       expect(usersRepo.update).toHaveBeenCalledWith(
         1,
-        expect.objectContaining({ email: 'deleted_1@craftea.fr', is_active: false }),
+        expect.objectContaining({
+          email: 'deleted_1@craftea.fr',
+          is_active: false,
+        }),
       );
     });
 
     it('should throw NotFoundException if user does not exist', async () => {
       usersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.selfDeactivate(999)).rejects.toThrow(NotFoundException);
+      await expect(service.selfDeactivate(999)).rejects.toThrow(
+        NotFoundException,
+      );
       expect(usersRepo.update).not.toHaveBeenCalled();
     });
   });
