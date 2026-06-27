@@ -39,7 +39,7 @@ export class User {
   is_active: boolean;
 
   @Column({ nullable: true })
-  avatar_url?: string;
+  avatar_url?: string | null;
 
   @Column({ nullable: true, type: 'varchar', select: false })
   reset_password_token?: string | null;
